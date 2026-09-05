@@ -1,4 +1,4 @@
-# 启动台 / Launchpad
+# OpenLaunchpad（启动台）
 
 <p align="center">
   <img src="docs/logo.png" width="160" height="160" alt="OpenLaunchpad logo">
@@ -36,12 +36,12 @@ Apple removed Launchpad — this brings a familiar full-screen app grid back.
 
 ## 安装 Install
 
-1. 下载 [Releases](../../releases) 里的 `Launchpad.zip`
-2. 解压得到 `Launchpad.app`（显示名：**启动台**）
+1. 下载 [Releases](../../releases) 里的 `OpenLaunchpad.zip`
+2. 解压得到 `OpenLaunchpad.app`（显示名：**启动台**）
 3. 拖到「应用程序」或 `~/Applications`
 4. 首次打开若被拦截：系统设置 → 隐私与安全性 → 仍要打开
 
-From Releases, unzip `Launchpad.app` and move it to Applications. If Gatekeeper blocks it, allow it in System Settings → Privacy & Security.
+From Releases, unzip `OpenLaunchpad.app` and move it to Applications. If Gatekeeper blocks it, allow it in System Settings → Privacy & Security.
 
 也可从源码编译：
 
@@ -50,7 +50,7 @@ xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
   -configuration Release -derivedDataPath build/DerivedData ONLY_ACTIVE_ARCH=YES
 ```
 
-产物：`build/DerivedData/Build/Products/Release/Launchpad.app`
+产物：`build/DerivedData/Build/Products/Release/OpenLaunchpad.app`
 
 ---
 
