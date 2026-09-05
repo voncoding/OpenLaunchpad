@@ -1,18 +1,39 @@
-# OpenLaunchpad（启动台）
+# OpenLaunchpad
+
+**macOS Tahoe Launchpad alternative / macOS 26 启动台替代**
 
 <p align="center">
-  <img src="docs/logo.png" width="160" height="160" alt="OpenLaunchpad logo">
+  <img src="docs/logo.png" width="160" height="160" alt="OpenLaunchpad — macOS Tahoe Launchpad alternative app icon">
 </p>
 
-面向 **macOS Tahoe（macOS 26）** 的原生启动台替代应用。  
-系统移除 Launchpad 之后，用这个小工具继续快速打开应用。
+<p align="center">
+  <a href="https://github.com/voncoding/OpenLaunchpad/releases/latest"><img alt="Download" src="https://img.shields.io/github/v/release/voncoding/OpenLaunchpad?label=Download&color=0A84FF"></a>
+  <a href="https://github.com/voncoding/OpenLaunchpad/releases"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2026%2B-black"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-green"></a>
+</p>
 
-A native **Launchpad replacement for macOS Tahoe (macOS 26)**.  
-Apple removed Launchpad — this brings a familiar full-screen app grid back.
+OpenLaunchpad is a **native Launchpad replacement for macOS Tahoe (macOS 26)** after Apple removed the system Launchpad.  
+It restores a familiar full-screen app launcher with search, paging, and drag-to-reorder.
+
+**OpenLaunchpad** 是面向 **macOS Tahoe（macOS 26）** 的原生启动台替代应用：全屏应用网格、拼音搜索、翻页与拖拽排序。
+
+[Download latest release](https://github.com/voncoding/OpenLaunchpad/releases/latest) · [中文说明](#安装-install)
 
 ---
 
-## 功能 Features
+## Why OpenLaunchpad
+
+- macOS Tahoe removed Launchpad — this brings it back as a lightweight native app
+- Blurred desktop wallpaper overlay (Dock & menu bar stay on top)
+- Chinese name / Pinyin / initials search
+- Trackpad paging + mouse drag on empty space
+- Icon reorder with remembered page
+
+适合关键词检索：`Launchpad alternative`、`macOS Tahoe Launchpad`、`macOS 26 启动台`、`Launchpad replacement`、`open source Launchpad`。
+
+---
+
+## Features 功能
 
 | 中文 | English |
 |------|---------|
@@ -27,61 +48,58 @@ Apple removed Launchpad — this brings a familiar full-screen app grid back.
 
 ---
 
-## 系统要求 Requirements
+## Requirements 系统要求
 
 - macOS 26.0+（Tahoe）
-- Apple Silicon 或 Intel（按当前构建目标）
+- Apple Silicon or Intel
 
 ---
 
-## 安装 Install
+## Install 安装
 
-1. 下载 [Releases](../../releases) 里的 `OpenLaunchpad.zip`
-2. 解压得到 `OpenLaunchpad.app`（显示名：**启动台**）
-3. 拖到「应用程序」或 `~/Applications`
-4. 首次打开若被拦截：系统设置 → 隐私与安全性 → 仍要打开
-
-From Releases, unzip `OpenLaunchpad.app` and move it to Applications. If Gatekeeper blocks it, allow it in System Settings → Privacy & Security.
-
-也可从源码编译：
+1. Open the [latest Release](https://github.com/voncoding/OpenLaunchpad/releases/latest)
+2. Download `OpenLaunchpad.zip` and unzip
+3. Move `OpenLaunchpad.app` (display name: **启动台**) to Applications or `~/Applications`
+4. If macOS blocks it: System Settings → Privacy & Security → Open Anyway
 
 ```bash
+# Build from source
 xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
   -configuration Release -derivedDataPath build/DerivedData ONLY_ACTIVE_ARCH=YES
+# Output: build/DerivedData/Build/Products/Release/OpenLaunchpad.app
 ```
 
-产物：`build/DerivedData/Build/Products/Release/OpenLaunchpad.app`
+---
+
+## Usage 使用
+
+- **Open**：⌥⌘L, menu bar grid icon, or Dock icon  
+- **Close**：Esc, or click empty space  
+- **Search**：click the search field first (no auto-focus)  
+- **Page**：trackpad swipe, or drag on gaps between icons  
+- **Reorder**：drag icons  
 
 ---
 
-## 使用 Usage
-
-- **打开**：⌥⌘L、菜单栏网格图标，或点击程序坞图标  
-- **关闭**：Esc、点击空白处  
-- **搜索**：点击搜索框后再输入（不会自动聚焦）  
-- **翻页**：触控板左右滑，或在图标空隙处按住拖动  
-- **重排**：在图标上拖动  
-
----
-
-## 仓库简介（可贴到 GitHub About）
-
-**中文：**  
-macOS Tahoe 原生启动台替代：全屏应用网格、拼音搜索、拖拽排序。
-
-**English：**  
-Native Launchpad replacement for macOS Tahoe — full-screen app grid, Pinyin search, and drag-to-reorder.
-
----
-
-## 技术栈 Stack
-
-SwiftUI + AppKit 混合：无边框覆盖层窗口、AppKit 跟手翻页，SwiftUI 负责图标网格与搜索。
+## Stack 技术栈
 
 SwiftUI + AppKit hybrid: borderless overlay window, AppKit-driven paging, SwiftUI grid & search.
 
 ---
 
-## 许可 License
+## FAQ
 
-MIT（可按需修改）
+**Is this the official Apple Launchpad?**  
+No. It is an independent open-source alternative for macOS Tahoe.
+
+**Can I use a custom domain?**  
+The GitHub repository itself cannot bind a domain. You can host a simple landing page with **GitHub Pages** (e.g. `docs/` or `gh-pages`) and point your domain there, linking to Releases for downloads.
+
+**Gatekeeper warning?**  
+Unsigned / ad-hoc signed builds may need “Open Anyway” in Privacy & Security.
+
+---
+
+## License
+
+MIT
