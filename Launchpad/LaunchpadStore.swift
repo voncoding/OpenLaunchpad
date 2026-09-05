@@ -1,6 +1,5 @@
 import AppKit
 import Observation
-import SwiftUI
 
 enum MoveDirection {
     case left, right, up, down
@@ -124,21 +123,22 @@ final class LaunchpadStore {
         moveDraggingApp(to: target)
     }
 
-    func endDrag() {
-        if dragHasMoved {
-            persistOrder()
-        }
+    private func clearDragState() {
         draggingApp = nil
         dragPosition = nil
         dragOriginIndex = nil
         dragHasMoved = false
     }
 
+    func endDrag() {
+        if dragHasMoved {
+            persistOrder()
+        }
+        clearDragState()
+    }
+
     func cancelDrag() {
-        draggingApp = nil
-        dragPosition = nil
-        dragOriginIndex = nil
-        dragHasMoved = false
+        clearDragState()
     }
 
     func launchSelected() {
@@ -148,13 +148,6 @@ final class LaunchpadStore {
 
     func revealInFinder(_ app: InstalledApp) {
         NSWorkspace.shared.activateFileViewerSelecting([app.url])
-    }
-
-    func select(_ app: InstalledApp) {
-        selectedID = app.id
-        if let index = filteredApps.firstIndex(of: app) {
-            currentPage = index / pageSize
-        }
     }
 
     func moveSelection(_ direction: MoveDirection) {

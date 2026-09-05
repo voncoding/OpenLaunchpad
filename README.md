@@ -1,5 +1,9 @@
 # 启动台 / Launchpad
 
+<p align="center">
+  <img src="docs/logo.png" width="160" height="160" alt="OpenLaunchpad logo">
+</p>
+
 面向 **macOS Tahoe（macOS 26）** 的原生启动台替代应用。  
 系统移除 Launchpad 之后，用这个小工具继续快速打开应用。
 

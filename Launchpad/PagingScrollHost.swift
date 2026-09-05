@@ -25,7 +25,7 @@ struct PagingScrollHost: NSViewRepresentable {
     let onLaunch: (InstalledApp) -> Void
     let onReveal: (InstalledApp) -> Void
     let onEmptyTap: () -> Void
-    var onLift: ((InstalledApp, CGPoint) -> Void)?
+    var onLift: ((InstalledApp) -> Void)?
     var onDrag: ((CGSize) -> Void)?
     var onDrop: (() -> Void)?
     var draggingApp: InstalledApp?
@@ -38,14 +38,12 @@ struct PagingScrollHost: NSViewRepresentable {
     func makeNSView(context: Context) -> LaunchpadPagerView {
         let view = LaunchpadPagerView()
         view.coordinator = context.coordinator
-        context.coordinator.pager = view
         context.coordinator.onPageSettled = { page in
             if currentPage != page {
                 currentPage = page
             }
         }
         updateNSView(view, context: context)
-        OverlayController.shared.pagerView = view
         return view
     }
 
@@ -62,6 +60,7 @@ struct PagingScrollHost: NSViewRepresentable {
             columns: columns,
             rows: rows,
             size: size,
+            selectedID: selectedID,
             draggingID: draggingID,
             dragPosition: dragPosition
         )
@@ -104,7 +103,6 @@ struct PagingScrollHost: NSViewRepresentable {
             rows: rows,
             appsOnPages: pages.map(\.count)
         )
-        OverlayController.shared.pagerView = view
 
         if !view.isTracking, view.settledPage != currentPage {
             let animated = context.coordinator.didApplyInitialPage
@@ -115,7 +113,6 @@ struct PagingScrollHost: NSViewRepresentable {
 
     @MainActor
     final class Coordinator {
-        weak var pager: LaunchpadPagerView?
         var onPageSettled: ((Int) -> Void)?
         var signature: ContentSignature?
         var didApplyInitialPage = false
@@ -127,6 +124,7 @@ struct ContentSignature: Equatable {
     var columns: Int
     var rows: Int
     var size: CGSize
+    var selectedID: URL?
     var draggingID: URL?
     var dragPosition: CGPoint?
 }
@@ -141,7 +139,7 @@ struct PagesStrip: View {
     let onReveal: (InstalledApp) -> Void
     let onEmptyTap: () -> Void
     var draggingID: URL?
-    var onLift: ((InstalledApp, CGPoint) -> Void)?
+    var onLift: ((InstalledApp) -> Void)?
     var onDrag: ((CGSize) -> Void)?
     var onDrop: (() -> Void)?
     var draggingApp: InstalledApp?
@@ -196,23 +194,23 @@ final class LaunchpadPagerView: NSView {
     private let clipLayerHost = FlippedClipView()
     private var hostingView: NSHostingView<PagesStrip>?
     private let gapCatcher = PageGapCatcherView()
-    private var eventMonitors: [Any] = []
+    private var scrollMonitor: Any?
 
     private(set) var isTracking = false
     private(set) var settledPage = 0
 
-    fileprivate var pageWidth: CGFloat = 1
-    fileprivate var pageHeight: CGFloat = 1
-    fileprivate var pageCount = 1
-    fileprivate var gridColumns = 7
-    fileprivate var gridRows = 5
-    fileprivate var appsOnPages: [Int] = []
-    fileprivate var offset: CGFloat = 0
+    private var pageWidth: CGFloat = 1
+    private var pageHeight: CGFloat = 1
+    private var pageCount = 1
+    private var gridColumns = 7
+    private var gridRows = 5
+    private var appsOnPages: [Int] = []
+    private var offset: CGFloat = 0
     private var axisLock: Axis?
-    fileprivate var gestureStartOffset: CGFloat = 0
-    fileprivate var smoothedDelta: CGFloat = 0
-    fileprivate var mouseStartX: CGFloat?
-    fileprivate var mousePaging = false
+    private var gestureStartOffset: CGFloat = 0
+    private var smoothedDelta: CGFloat = 0
+    private var mouseStartX: CGFloat?
+    private var mousePaging = false
 
     private enum Axis {
         case horizontal, vertical
@@ -246,14 +244,14 @@ final class LaunchpadPagerView: NSView {
             guard let self, event.window === self.window else { return event }
             return self.handleScroll(event) ? nil : event
         }
-        eventMonitors = [scrollMonitor].compactMap { $0 }
+        self.scrollMonitor = scrollMonitor
     }
 
     private func removeMonitors() {
-        for monitor in eventMonitors {
-            NSEvent.removeMonitor(monitor)
+        if let scrollMonitor {
+            NSEvent.removeMonitor(scrollMonitor)
+            self.scrollMonitor = nil
         }
-        eventMonitors = []
     }
 
     override func layout() {

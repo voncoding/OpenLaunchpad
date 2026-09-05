@@ -13,7 +13,6 @@ final class OverlayController {
     static let shared = OverlayController()
 
     let store = LaunchpadStore()
-    weak var pagerView: LaunchpadPagerView?
 
     private var window: LaunchpadWindow?
     private var localMonitor: Any?
@@ -25,8 +24,6 @@ final class OverlayController {
     func prepare() {
         store.reload()
     }
-
-    var overlayVisible: Bool { isVisible }
 
     func toggle() {
         if isVisible {
@@ -50,6 +47,7 @@ final class OverlayController {
                 topInset: menuHeight + 8,
                 bottomInset: dockHeight + 36
             )
+            WallpaperLoader.invalidate()
             store.wallpaper = WallpaperLoader.blurredWallpaper(for: screen)
         } else {
             store.updateLayout(for: frame.size, topInset: 32, bottomInset: 96)

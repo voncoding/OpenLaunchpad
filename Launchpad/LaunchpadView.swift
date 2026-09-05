@@ -122,45 +122,45 @@ struct PagedAppGrid: View {
 
     var body: some View {
         GeometryReader { geo in
-            ZStack {
-                PagingScrollHost(
-                    pages: store.pages,
-                    columns: store.columns,
-                    rows: store.rows,
+            PagingScrollHost(
+                pages: store.pages,
+                columns: store.columns,
+                rows: store.rows,
                 selectedID: store.selectedID,
                 isReordering: store.isReordering,
                 draggingID: store.draggingApp?.id,
                 currentPage: Binding(
-                        get: { store.currentPage },
-                        set: { store.currentPage = $0 }
-                    ),
-                    size: geo.size,
-                    onLaunch: { OverlayController.shared.launch($0) },
-                    onReveal: { store.revealInFinder($0) },
-                    onEmptyTap: {
-                        if store.isReordering {
-                            store.endDrag()
-                        } else {
-                            OverlayController.shared.hide()
-                        }
-                    },
-                    onLift: { app, _ in
-                        store.beginDrag(app, pageFrame: geo.size)
-                    },
-                    onDrag: { translation in
-                        store.updateDrag(translation: translation, pageFrame: geo.size)
-                    },
-                    onDrop: {
+                    get: { store.currentPage },
+                    set: { store.currentPage = $0 }
+                ),
+                size: geo.size,
+                onLaunch: { OverlayController.shared.launch($0) },
+                onReveal: { store.revealInFinder($0) },
+                onEmptyTap: {
+                    if store.isReordering {
                         store.endDrag()
-                    },
-                    draggingApp: store.draggingApp,
-                    dragPosition: store.dragPosition
-                )
-            }
-            .coordinateSpace(name: "launchpadGrid")
+                    } else {
+                        OverlayController.shared.hide()
+                    }
+                },
+                onLift: { app in
+                    store.beginDrag(app, pageFrame: geo.size)
+                },
+                onDrag: { translation in
+                    store.updateDrag(translation: translation, pageFrame: geo.size)
+                },
+                onDrop: {
+                    store.endDrag()
+                },
+                draggingApp: store.draggingApp,
+                dragPosition: store.dragPosition
+            )
         }
         .padding(.horizontal, 72)
-        .animation(store.isReordering ? .easeInOut(duration: 0.16) : .snappy(duration: 0.22), value: store.apps.map(\.id))
+        .animation(
+            store.isReordering ? .easeInOut(duration: 0.16) : .snappy(duration: 0.22),
+            value: store.apps.map(\.id)
+        )
     }
 }
 
@@ -197,7 +197,7 @@ struct AppGridPage: View {
     var onEmptyTap: (() -> Void)?
     var fillsPage: Bool = true
     var draggingID: URL?
-    var onLift: ((InstalledApp, CGPoint) -> Void)?
+    var onLift: ((InstalledApp) -> Void)?
     var onDrag: ((CGSize) -> Void)?
     var onDrop: (() -> Void)?
 
@@ -240,7 +240,7 @@ struct AppGridPage: View {
                         isPlaceholder: apps[index].id == draggingID,
                         onLaunch: { onLaunch(apps[index]) },
                         onReveal: { onReveal(apps[index]) },
-                        onLift: { _ in onLift?(apps[index], .zero) },
+                        onLift: onLift == nil ? nil : { onLift?(apps[index]) },
                         onDrag: onDrag,
                         onDrop: onDrop
                     )
@@ -256,7 +256,7 @@ struct AppIconCell: View {
     var isFloating: Bool = false
     let onLaunch: () -> Void
     let onReveal: () -> Void
-    var onLift: ((CGPoint) -> Void)?
+    var onLift: (() -> Void)?
     var onDrag: ((CGSize) -> Void)?
     var onDrop: (() -> Void)?
 
@@ -271,17 +271,14 @@ struct AppIconCell: View {
                 .frame(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.iconSize)
                 .shadow(color: .black.opacity(isFloating ? 0.45 : 0.32), radius: isFloating || hovering || isSelected ? 18 : 10, y: 6)
                 .scaleEffect(isFloating ? 1.12 : (hovering || isSelected ? 1.06 : 1))
-                // Hit target is only the icon square — not the cell padding around it.
                 .contentShape(Rectangle())
                 .onHover { hovering = $0 }
                 .modifier(
                     IconPressModifier(
                         enabled: onLift != nil && !isFloating,
-                        onLift: { onLift?(.zero) },
+                        onLift: { onLift?() },
                         onDrag: { onDrag?($0) },
-                        onDrop: { _ in
-                            onDrop?()
-                        }
+                        onDrop: { onDrop?() }
                     )
                 )
                 .onTapGesture {
@@ -322,7 +319,7 @@ private struct IconPressModifier: ViewModifier {
     let enabled: Bool
     let onLift: () -> Void
     let onDrag: (CGSize) -> Void
-    let onDrop: (Bool) -> Void
+    let onDrop: () -> Void
 
     @State private var lifted = false
 
@@ -343,10 +340,9 @@ private struct IconPressModifier: ViewModifier {
                 }
                 onDrag(drag.translation)
             }
-            .onEnded { drag in
-                let moved = hypot(drag.translation.width, drag.translation.height) > 8
+            .onEnded { _ in
                 if lifted {
-                    onDrop(moved)
+                    onDrop()
                 }
                 lifted = false
             }
@@ -374,7 +370,6 @@ struct PageIndicator: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .glassEffect(.regular, in: .capsule)
-        .opacity(count > 1 ? 1 : 0)
     }
 }
 

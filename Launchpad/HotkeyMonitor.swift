@@ -39,7 +39,7 @@ final class HotkeyMonitor: Sendable {
         )
     }
 
-    func stop() {
+    private func stop() {
         if let hotKeyRef {
             UnregisterEventHotKey(hotKeyRef)
             self.hotKeyRef = nil
