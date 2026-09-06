@@ -91,6 +91,10 @@ struct InteractionRegressionTests {
             ("folder extraction preserves later pages", PageLayoutRegression.folderExtractionPreservesPages),
             ("legacy layout migration preserves page boundaries", PageLayoutRegression.legacyMigration),
             ("pager uses full viewport and settles gestures ending outside", PagerEdgeRegression.run),
+            ("Photos wallpaper resolves the selected cached asset", WallpaperSourceRegression.selectedAsset),
+            ("wallpaper selection is reread after settings change", WallpaperSourceRegression.changingSelection),
+            ("wallpaper respects the requested display's desktop setting", WallpaperSourceRegression.displaySelection),
+            ("wallpaper never substitutes an arbitrary photo or directory entry", WallpaperSourceRegression.safeFallback),
         ]
         var failures = 0
         for (name, test) in tests {

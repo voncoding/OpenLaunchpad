@@ -16,10 +16,11 @@
 - 区分拖拽排序与悬停合并，支持边缘停留跨页移动及 Escape 取消拖拽。
 - 修复搜索结果布局、键盘选择、输入法处理、扫描刷新与拖拽冲突，以及快速开关窗口的状态问题。
 - 改进登录启动状态与错误提示；应用启动失败时显示错误。
+- 修复“照片”来源壁纸被误读为系统默认壁纸的问题，按当前选中的照片标识读取系统缓存原图，每次打开时重新检查配置。
 
 ### 验证
 
-- 31 项交互回归检查，包括实际 SwiftUI/AppKit 文件夹滚动条和分页视图测试。
+- 35 项交互回归检查，包括壁纸来源解析、实际 SwiftUI/AppKit 文件夹滚动条和分页视图测试。
 - Release 支持 Apple Silicon 与 Intel；安装包使用临时签名，尚未经过 Apple 公证。
 
 ### Highlights
@@ -28,7 +29,8 @@
 - Keep independent page layouts with intentional empty space, including across restarts.
 - Improve folder presentation, drag intent, keyboard navigation, and full-width page transitions.
 - Fix interrupted swipe snapping, scan/drag races, and rapid window visibility changes.
-- Add 31 isolated interaction regression checks.
+- Resolve selected Photos wallpapers instead of displaying the system default fallback.
+- Add 35 isolated interaction regression checks.
 
 ## 1.0.0
 

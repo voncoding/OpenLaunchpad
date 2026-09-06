@@ -29,21 +29,13 @@ enum WallpaperLoader {
         return "\(url.absoluteString)|\(modified)|\(bytes)|\(screen.frame.width)x\(screen.frame.height)|\(screen.backingScaleFactor)"
     }
 
-    private static func wallpaperURL(for screen: NSScreen) -> URL? {
-        guard let url = NSWorkspace.shared.desktopImageURL(for: screen) else { return nil }
-
-        if url.hasDirectoryPath {
-            let files = (try? FileManager.default.contentsOfDirectory(
-                at: url,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )) ?? []
-            return files.sorted { $0.path < $1.path }.first {
-                ["jpg", "jpeg", "png", "heic", "tif", "tiff"].contains($0.pathExtension.lowercased())
-            }
-        }
-
-        return url
+    static func wallpaperURL(for screen: NSScreen) -> URL? {
+        let display = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+        let uuid = display.flatMap { CGDisplayCreateUUIDFromDisplayID($0)?.takeRetainedValue() }
+        let displayID = uuid.map { CFUUIDCreateString(nil, $0) as String }
+        return WallpaperSourceResolver.wallpaperURL(
+            workspaceURL: NSWorkspace.shared.desktopImageURL(for: screen), displayID: displayID
+        )
     }
 
     private static func blur(_ image: NSImage, to size: CGSize) -> NSImage {
