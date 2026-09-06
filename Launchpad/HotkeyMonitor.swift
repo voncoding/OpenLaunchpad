@@ -28,7 +28,7 @@ final class HotkeyMonitor: Sendable {
         )
         guard status == noErr else { return }
 
-        var hotKeyID = EventHotKeyID(signature: OSType(0x4C504144), id: 1)
+        let hotKeyID = EventHotKeyID(signature: OSType(0x4C504144), id: 1)
         RegisterEventHotKey(
             UInt32(kVK_ANSI_L),
             UInt32(cmdKey | optionKey),

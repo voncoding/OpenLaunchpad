@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-struct InstalledApp: Identifiable, Hashable, Sendable {
+nonisolated struct InstalledApp: Identifiable, Hashable, Sendable {
     let url: URL
     let name: String
     let latinName: String
@@ -16,6 +16,8 @@ struct InstalledApp: Identifiable, Hashable, Sendable {
 
         if name.localizedStandardContains(query) { return true }
         if latinName.localizedCaseInsensitiveContains(query) { return true }
+        let compactQuery = query.filter { !$0.isWhitespace }
+        if latinName.filter({ !$0.isWhitespace }).localizedCaseInsensitiveContains(compactQuery) { return true }
         if initials.localizedCaseInsensitiveContains(query.replacingOccurrences(of: " ", with: "")) {
             return true
         }
@@ -24,7 +26,7 @@ struct InstalledApp: Identifiable, Hashable, Sendable {
     }
 }
 
-enum AppScanner: Sendable {
+nonisolated enum AppScanner: Sendable {
     private static let skippedBundleIDs: Set<String> = [
         "a.Launchpad",
     ]
@@ -76,7 +78,7 @@ enum AppScanner: Sendable {
         ) else { return }
 
         for url in contents {
-            if url.pathExtension == "app" {
+            if url.pathExtension.lowercased() == "app" {
                 if let app = makeApp(at: url) {
                     if let bundleID = app.bundleIdentifier {
                         if unique[bundleID] == nil {
@@ -136,68 +138,5 @@ enum AppScanner: Sendable {
             .compactMap { $0.first }
             .map(String.init)
             .joined()
-    }
-}
-
-enum IconCache: Sendable {
-    nonisolated(unsafe) private static let cache: NSCache<NSURL, NSImage> = {
-        let cache = NSCache<NSURL, NSImage>()
-        cache.countLimit = 400
-        return cache
-    }()
-
-    nonisolated static func image(for url: URL) -> NSImage {
-        let key = url as NSURL
-        if let cached = cache.object(forKey: key) {
-            return cached
-        }
-
-        let source = NSWorkspace.shared.icon(forFile: url.path)
-        let raster = rasterize(source)
-        cache.setObject(raster, forKey: key)
-        return raster
-    }
-
-    nonisolated static func preheat(urls: [URL]) {
-        for url in urls {
-            _ = image(for: url)
-        }
-    }
-
-    private nonisolated static func rasterize(_ source: NSImage) -> NSImage {
-        let pixel = Int(LaunchpadMetrics.iconPixelSize)
-        let size = NSSize(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.iconSize)
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-
-        guard let context = CGContext(
-            data: nil,
-            width: pixel,
-            height: pixel,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: bitmapInfo
-        ) else {
-            source.size = size
-            return source
-        }
-
-        context.interpolationQuality = .high
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-        source.draw(
-            in: CGRect(x: 0, y: 0, width: pixel, height: pixel),
-            from: .zero,
-            operation: .copy,
-            fraction: 1
-        )
-        NSGraphicsContext.restoreGraphicsState()
-
-        guard let cgImage = context.makeImage() else {
-            source.size = size
-            return source
-        }
-        return NSImage(cgImage: cgImage, size: size)
     }
 }

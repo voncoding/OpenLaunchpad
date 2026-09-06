@@ -1,7 +1,12 @@
 import AppKit
+import Carbon
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let launchEvent = NSAppleEventManager.shared().currentAppleEvent
+        let launchedAtLogin = launchEvent?.eventID == kAEOpenApplication
+            && launchEvent?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
         NSApp.setActivationPolicy(.regular)
         OverlayController.shared.prepare()
         HotkeyMonitor.shared.start()
@@ -30,7 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        OverlayController.shared.show()
+        if !launchedAtLogin {
+            OverlayController.shared.show()
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

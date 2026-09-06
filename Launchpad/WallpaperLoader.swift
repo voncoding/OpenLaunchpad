@@ -1,31 +1,35 @@
 import AppKit
 import CoreImage
 
-enum WallpaperLoader: Sendable {
-    nonisolated(unsafe) private static let cache = NSCache<NSString, NSImage>()
-    nonisolated(unsafe) private static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+@MainActor
+enum WallpaperLoader {
+    private static let cache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 6
+        return cache
+    }()
+    private static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
 
-    nonisolated static func blurredWallpaper(for screen: NSScreen) -> NSImage? {
-        let key = cacheKey(for: screen) as NSString
+    static func blurredWallpaper(for screen: NSScreen) -> NSImage? {
+        guard let url = wallpaperURL(for: screen) else { return nil }
+        let key = cacheKey(for: screen, url: url) as NSString
         if let cached = cache.object(forKey: key) {
             return cached
         }
-        guard let source = rawWallpaper(for: screen) else { return nil }
+        guard let source = NSImage(contentsOf: url) else { return nil }
         let blurred = blur(source, to: screen.frame.size)
         cache.setObject(blurred, forKey: key)
         return blurred
     }
 
-    nonisolated static func invalidate() {
-        cache.removeAllObjects()
+    private static func cacheKey(for screen: NSScreen, url: URL) -> String {
+        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+        let modified = values?.contentModificationDate?.timeIntervalSince1970 ?? 0
+        let bytes = values?.fileSize ?? 0
+        return "\(url.absoluteString)|\(modified)|\(bytes)|\(screen.frame.width)x\(screen.frame.height)|\(screen.backingScaleFactor)"
     }
 
-    private nonisolated static func cacheKey(for screen: NSScreen) -> String {
-        let url = NSWorkspace.shared.desktopImageURL(for: screen)?.absoluteString ?? ""
-        return "\(url)|\(Int(screen.frame.width))x\(Int(screen.frame.height))"
-    }
-
-    private nonisolated static func rawWallpaper(for screen: NSScreen) -> NSImage? {
+    private static func wallpaperURL(for screen: NSScreen) -> URL? {
         guard let url = NSWorkspace.shared.desktopImageURL(for: screen) else { return nil }
 
         if url.hasDirectoryPath {
@@ -34,16 +38,15 @@ enum WallpaperLoader: Sendable {
                 includingPropertiesForKeys: nil,
                 options: [.skipsHiddenFiles]
             )) ?? []
-            let match = files.first { ["jpg", "jpeg", "png", "heic", "tif", "tiff"].contains($0.pathExtension.lowercased()) }
-            if let match, let image = NSImage(contentsOf: match) {
-                return image
+            return files.sorted { $0.path < $1.path }.first {
+                ["jpg", "jpeg", "png", "heic", "tif", "tiff"].contains($0.pathExtension.lowercased())
             }
         }
 
-        return NSImage(contentsOf: url)
+        return url
     }
 
-    private nonisolated static func blur(_ image: NSImage, to size: CGSize) -> NSImage {
+    private static func blur(_ image: NSImage, to size: CGSize) -> NSImage {
         let pixelSize = CGSize(width: max(size.width, 1), height: max(size.height, 1))
         guard let cgSource = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             return image

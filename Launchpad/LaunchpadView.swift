@@ -10,53 +10,67 @@ struct LaunchpadView: View {
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
 
-            Color.black.opacity(0.22)
+            Color.black.opacity(store.openFolderID == nil ? 0.22 : 0.52)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    OverlayController.shared.hide()
-                }
-
-            VStack(spacing: 0) {
-                SearchPill(query: $store.query)
-                    .focused($searchFocused)
-                    .padding(.top, store.topInset + 16)
-                    .padding(.bottom, 16)
-                    .zIndex(2)
-
-                if store.isLoading && store.apps.isEmpty {
-                    Spacer()
-                    ProgressView()
-                        .controlSize(.large)
-                    Spacer()
-                } else if store.filteredApps.isEmpty {
-                    Spacer()
-                    Text(store.query.isEmpty ? "没有找到应用程序" : "未找到“\(store.query)”")
-                        .font(.title3)
-                        .foregroundStyle(.white.opacity(0.85))
-                        .shadow(color: .black.opacity(0.45), radius: 8, y: 2)
-                    Spacer()
-                } else if store.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    PagedAppGrid(store: store)
-                        .zIndex(1)
-                } else {
-                    SearchResultsGrid(store: store)
-                        .zIndex(1)
-                }
-
-                if store.query.isEmpty && store.pages.count > 1 {
-                    PageIndicator(
-                        count: store.pages.count,
-                        current: store.currentPage
-                    ) { page in
-                        store.goToPage(page)
+                    if store.openFolderID != nil {
+                        store.closeFolder()
+                    } else {
+                        OverlayController.shared.hide()
                     }
-                    .padding(.bottom, store.bottomInset)
-                } else {
-                    Color.clear.frame(height: store.bottomInset)
                 }
+
+            // Hide the whole icon board while a folder is open (wallpaper + folder only).
+            if store.openFolderID == nil {
+                VStack(spacing: 0) {
+                    SearchPill(query: $store.query)
+                        .focused($searchFocused)
+                        .padding(.top, store.topInset + 16)
+                        .padding(.bottom, 16)
+                        .zIndex(2)
+
+                    if store.isLoading && store.appsIsEmpty {
+                        Spacer()
+                        ProgressView()
+                            .controlSize(.large)
+                        Spacer()
+                    } else if store.displayItems.isEmpty {
+                        Spacer()
+                        Text(store.query.isEmpty ? "没有找到应用程序" : "未找到“\(store.query)”")
+                            .font(.title3)
+                            .foregroundStyle(.white.opacity(0.85))
+                            .shadow(color: .black.opacity(0.45), radius: 8, y: 2)
+                        Spacer()
+                    } else if store.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        PagedAppGrid(store: store)
+                            .zIndex(1)
+                    } else {
+                        SearchResultsGrid(store: store)
+                            .zIndex(1)
+                    }
+
+                    if store.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && store.pages.count > 1 {
+                        PageIndicator(
+                            count: store.pages.count,
+                            current: store.currentPage
+                        ) { page in
+                            store.goToPage(page)
+                        }
+                        .padding(.bottom, store.bottomInset)
+                    } else {
+                        Color.clear.frame(height: store.bottomInset)
+                    }
+                }
+                .transition(.opacity)
+            }
+
+            if store.openFolderID != nil {
+                FolderOverlay(store: store)
+                    .zIndex(10)
             }
         }
+        .animation(.easeOut(duration: 0.22), value: store.openFolderID)
         .preferredColorScheme(.dark)
         .containerBackground(.clear, for: .window)
         .scaleEffect(store.isPresented ? 1 : 1.04)
@@ -64,20 +78,28 @@ struct LaunchpadView: View {
         .onChange(of: store.isPresented) { _, presented in
             if !presented {
                 searchFocused = false
+                store.closeFolder()
             }
         }
         .onChange(of: store.query) { _, _ in
-            store.selectedID = nil
+            store.closeFolder()
+        }
+        .onChange(of: store.openFolderID) { _, _ in
+            OverlayController.shared.updateFolderPresentation()
         }
     }
 
     @ViewBuilder
     private var wallpaperLayer: some View {
         if let wallpaper = store.wallpaper {
-            Image(nsImage: wallpaper)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFill()
+            GeometryReader { geo in
+                Image(nsImage: wallpaper)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+            }
         } else {
             Color.black
         }
@@ -91,29 +113,36 @@ struct SearchPill: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.72))
+                .foregroundStyle(.white.opacity(0.55))
 
             TextField("搜索", text: $query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(.white)
-                .tint(.white)
+                .foregroundStyle(.white.opacity(0.92))
+                .tint(.white.opacity(0.7))
+                .accessibilityLabel("搜索应用程序")
 
             if !query.isEmpty {
                 Button {
                     query = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(.white.opacity(0.4))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("清除搜索")
+                .help("清除搜索")
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .frame(width: 280)
-        .glassEffect(.regular.interactive(), in: .capsule)
-        .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
+        .glassEffect(.regular.tint(.white.opacity(0.06)), in: .capsule)
+        .overlay {
+            Capsule()
+                .strokeBorder(.white.opacity(0.22), lineWidth: 0.5)
+        }
+        .shadow(color: .black.opacity(0.2), radius: 16, y: 6)
     }
 }
 
@@ -122,44 +151,58 @@ struct PagedAppGrid: View {
 
     var body: some View {
         GeometryReader { geo in
-            PagingScrollHost(
-                pages: store.pages,
-                columns: store.columns,
-                rows: store.rows,
-                selectedID: store.selectedID,
-                isReordering: store.isReordering,
-                draggingID: store.draggingApp?.id,
-                currentPage: Binding(
-                    get: { store.currentPage },
-                    set: { store.currentPage = $0 }
-                ),
-                size: geo.size,
-                onLaunch: { OverlayController.shared.launch($0) },
-                onReveal: { store.revealInFinder($0) },
-                onEmptyTap: {
-                    if store.isReordering {
-                        store.endDrag()
-                    } else {
-                        OverlayController.shared.hide()
+            let gridFrame = CGSize(width: max(geo.size.width - 2 * store.horizontalInset, 1), height: geo.size.height)
+            ZStack(alignment: .topLeading) {
+                PagingScrollHost(
+                    store: store,
+                    pageFrame: geo.size,
+                    horizontalInset: store.horizontalInset,
+                    onLaunch: { OverlayController.shared.launch($0) },
+                    onReveal: { store.revealInFinder($0) },
+                    onOpenFolder: { store.openFolder($0) },
+                    onEmptyTap: {
+                        if store.isReordering {
+                            store.endDrag()
+                        } else {
+                            OverlayController.shared.hide()
+                        }
                     }
-                },
-                onLift: { app in
-                    store.beginDrag(app, pageFrame: geo.size)
-                },
-                onDrag: { translation in
-                    store.updateDrag(translation: translation, pageFrame: geo.size)
-                },
-                onDrop: {
-                    store.endDrag()
-                },
-                draggingApp: store.draggingApp,
-                dragPosition: store.dragPosition
-            )
+                )
+
+                // Floating icon outside AppKit pager — position updates must not rebuild the grid.
+                if let draggingItem = store.draggingItem,
+                   let dragPosition = store.dragPosition,
+                   store.dragSourceIsFolder == false {
+                    let pageOffset = CGFloat(store.currentPage) * gridFrame.width
+                    let local = CGPoint(x: dragPosition.x - pageOffset + store.horizontalInset, y: dragPosition.y)
+                    Group {
+                        switch draggingItem {
+                        case .app(let app):
+                            AppIconCell(
+                                app: app,
+                                isSelected: false,
+                                isFloating: true,
+                                onLaunch: {},
+                                onReveal: {}
+                            )
+                        case .folder(let folder):
+                            FolderIconCell(
+                                folder: folder,
+                                apps: store.apps(in: folder),
+                                isFloating: true
+                            )
+                        }
+                    }
+                    .position(local)
+                    .allowsHitTesting(false)
+                }
+            }
         }
-        .padding(.horizontal, 72)
         .animation(
-            store.isReordering ? .easeInOut(duration: 0.16) : .snappy(duration: 0.22),
-            value: store.apps.map(\.id)
+            store.mergeTargetID != nil || store.isReordering
+                ? nil
+                : .snappy(duration: 0.22),
+            value: store.items.map(\.id)
         )
     }
 }
@@ -168,55 +211,68 @@ struct SearchResultsGrid: View {
     @Bindable var store: LaunchpadStore
 
     var body: some View {
-        ScrollView {
-            AppGridPage(
-                apps: store.filteredApps,
-                columns: store.columns,
-                rows: store.rows,
-                selectedID: store.selectedID,
-                onLaunch: { OverlayController.shared.launch($0) },
-                onReveal: { store.revealInFinder($0) },
-                onEmptyTap: { OverlayController.shared.hide() },
-                fillsPage: false,
-                draggingID: nil
-            )
-            .padding(.bottom, 24)
+        ScrollViewReader { scroll in
+            ScrollView {
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: 1).id("search-top")
+                    ItemGridPage(
+                        items: store.displayItems,
+                        columns: store.columns,
+                        rows: store.rows,
+                        selectedID: store.selectedID,
+                        onLaunch: { OverlayController.shared.launch($0) },
+                        onReveal: { store.revealInFinder($0) },
+                        onOpenFolder: { store.openFolder($0) },
+                        onEmptyTap: { OverlayController.shared.hide() },
+                        fillsPage: false,
+                        draggingID: nil,
+                        mergeTargetID: nil,
+                        resolveFolderApps: { store.apps(in: $0) }
+                    )
+                    .padding(.bottom, 24)
+                }
+            }
+            .scrollIndicators(.hidden)
+            .task {
+                await Task.yield()
+                if let selectedID = store.selectedID { scroll.scrollTo(selectedID) }
+            }
+            .onChange(of: store.selectedID) { _, selectedID in
+                guard let selectedID else { return }
+                withAnimation(.easeOut(duration: 0.16)) {
+                    scroll.scrollTo(selectedID)
+                }
+            }
+            .onChange(of: store.query) { _, _ in
+                scroll.scrollTo("search-top", anchor: .top)
+            }
         }
-        .scrollIndicators(.hidden)
-        .padding(.horizontal, 72)
+        .padding(.horizontal, store.horizontalInset)
     }
 }
 
-struct AppGridPage: View {
-    let apps: [InstalledApp]
+struct ItemGridPage: View {
+    let items: [LaunchpadItem]
     let columns: Int
     var rows: Int = 5
-    let selectedID: URL?
+    let selectedID: String?
     let onLaunch: (InstalledApp) -> Void
     let onReveal: (InstalledApp) -> Void
+    let onOpenFolder: (LaunchpadFolder) -> Void
     var onEmptyTap: (() -> Void)?
     var fillsPage: Bool = true
-    var draggingID: URL?
-    var onLift: ((InstalledApp) -> Void)?
+    var draggingID: String?
+    var mergeTargetID: String?
+    var onLift: ((LaunchpadItem) -> Void)?
     var onDrag: ((CGSize) -> Void)?
     var onDrop: (() -> Void)?
+    var resolveFolderApps: ((LaunchpadFolder) -> [InstalledApp])?
 
     var body: some View {
         let columnCount = max(columns, 1)
-        let rowCount = fillsPage ? max(rows, 1) : max((apps.count + columnCount - 1) / columnCount, 1)
-
-        ZStack {
-            // Search results still need empty taps; paged mode uses the AppKit gap catcher.
-            if !fillsPage {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onEmptyTap?()
-                    }
-            }
-
+        if fillsPage {
             VStack(spacing: 0) {
-                ForEach(0..<rowCount, id: \.self) { row in
+                ForEach(0..<max(rows, 1), id: \.self) { row in
                     HStack(spacing: 0) {
                         ForEach(0..<columnCount, id: \.self) { column in
                             let index = row * columnCount + column
@@ -225,27 +281,155 @@ struct AppGridPage: View {
                     }
                 }
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: fillsPage ? .infinity : nil, alignment: .top)
-    }
-
-    private func iconCell(at index: Int) -> some View {
-        Color.clear
-            .frame(maxWidth: .infinity, maxHeight: fillsPage ? .infinity : nil)
-            .overlay {
-                if index < apps.count {
-                    AppIconCell(
-                        app: apps[index],
-                        isSelected: apps[index].id == selectedID,
-                        isPlaceholder: apps[index].id == draggingID,
-                        onLaunch: { onLaunch(apps[index]) },
-                        onReveal: { onReveal(apps[index]) },
-                        onLift: onLift == nil ? nil : { onLift?(apps[index]) },
-                        onDrag: onDrag,
-                        onDrop: onDrop
-                    )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: columnCount),
+                spacing: 0
+            ) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    iconCell(at: index)
+                        .frame(height: LaunchpadMetrics.cellHeight)
+                        .id(item.id)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .top)
+            .background {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { onEmptyTap?() }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func iconCell(at index: Int) -> some View {
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay {
+                if index < items.count {
+                    let item = items[index]
+                    switch item {
+                    case .app(let app):
+                        AppIconCell(
+                            app: app,
+                            isSelected: item.id == selectedID,
+                            isPlaceholder: item.id == draggingID,
+                            hideWhileMerging: mergeTargetID != nil && item.id == draggingID,
+                            isMergeTarget: item.id == mergeTargetID,
+                            onLaunch: { onLaunch(app) },
+                            onReveal: { onReveal(app) },
+                            onLift: onLift == nil ? nil : { onLift?(item) },
+                            onDrag: onDrag,
+                            onDrop: onDrop
+                        )
+                    case .folder(let folder):
+                        FolderIconCell(
+                            folder: folder,
+                            apps: resolveFolderApps?(folder) ?? [],
+                            isSelected: item.id == selectedID,
+                            isPlaceholder: item.id == draggingID,
+                            hideWhileMerging: mergeTargetID != nil && item.id == draggingID,
+                            isMergeTarget: item.id == mergeTargetID,
+                            onOpen: { onOpenFolder(folder) },
+                            onLift: onLift == nil ? nil : { onLift?(item) },
+                            onDrag: onDrag,
+                            onDrop: onDrop
+                        )
+                    }
+                }
+            }
+    }
+}
+
+struct FolderIconCell: View {
+    let folder: LaunchpadFolder
+    let apps: [InstalledApp]
+    var isSelected: Bool = false
+    var isPlaceholder: Bool = false
+    var hideWhileMerging: Bool = false
+    var isFloating: Bool = false
+    var isMergeTarget: Bool = false
+    var onOpen: (() -> Void)?
+    var onLift: (() -> Void)?
+    var onDrag: ((CGSize) -> Void)?
+    var onDrop: (() -> Void)?
+
+    @State private var hovering = false
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(.white.opacity(0.16))
+                    .frame(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.iconSize)
+
+                let preview = Array(apps.prefix(4))
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 4), GridItem(.flexible(), spacing: 4)],
+                    spacing: 4
+                ) {
+                    ForEach(preview, id: \.id) { app in
+                        Image(nsImage: IconCache.image(for: app.url))
+                            .resizable()
+                            .interpolation(.medium)
+                            .aspectRatio(contentMode: .fit)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                }
+                .padding(14)
+                .frame(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.iconSize)
+            }
+            .overlay {
+                if (isSelected || isMergeTarget) && !isPlaceholder && !isFloating {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(.white.opacity(isMergeTarget ? 0.75 : 0.45), lineWidth: isMergeTarget ? 2 : 1.5)
+                        .allowsHitTesting(false)
+                }
+            }
+            .shadow(
+                color: .black.opacity(isFloating ? 0.45 : 0.32),
+                radius: isFloating || hovering || isSelected || isMergeTarget ? 18 : 10,
+                y: 6
+            )
+            .scaleEffect(
+                isFloating ? 1.12 : (isMergeTarget ? 1.14 : (hovering || isSelected ? 1.06 : 1))
+            )
+            .contentShape(Rectangle())
+            .onHover { hovering = $0 }
+            .modifier(
+                IconPressModifier(
+                    enabled: onLift != nil && !isFloating,
+                    onLift: { onLift?() },
+                    onDrag: { onDrag?($0) },
+                    onDrop: { onDrop?() }
+                )
+            )
+            .onTapGesture {
+                guard !isFloating else { return }
+                onOpen?()
+            }
+
+            Text(folder.name)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.75), radius: 3, y: 1)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .frame(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.labelHeight, alignment: .top)
+                .allowsHitTesting(false)
+        }
+        .frame(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.iconBlockHeight)
+        .fixedSize()
+        .opacity(hideWhileMerging ? 0 : (isPlaceholder ? 0.22 : 1))
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(.easeOut(duration: 0.12), value: isMergeTarget)
+        .allowsHitTesting(!isFloating)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(folder.name)，文件夹，\(apps.count) 个应用程序")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onOpen?() }
+        .accessibilityHidden(isFloating)
     }
 }
 
@@ -253,7 +437,11 @@ struct AppIconCell: View {
     let app: InstalledApp
     let isSelected: Bool
     var isPlaceholder: Bool = false
+    var hideWhileMerging: Bool = false
     var isFloating: Bool = false
+    var isMergeTarget: Bool = false
+    var isInFolder: Bool = false
+    var labelWidth: CGFloat = LaunchpadMetrics.iconSize
     let onLaunch: () -> Void
     let onReveal: () -> Void
     var onLift: (() -> Void)?
@@ -263,14 +451,18 @@ struct AppIconCell: View {
     @State private var hovering = false
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: isInFolder ? 6 : 8) {
             Image(nsImage: IconCache.image(for: app.url))
                 .resizable()
                 .interpolation(.medium)
                 .aspectRatio(contentMode: .fit)
                 .frame(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.iconSize)
-                .shadow(color: .black.opacity(isFloating ? 0.45 : 0.32), radius: isFloating || hovering || isSelected ? 18 : 10, y: 6)
-                .scaleEffect(isFloating ? 1.12 : (hovering || isSelected ? 1.06 : 1))
+                .shadow(
+                    color: .black.opacity(isFloating ? 0.35 : (isInFolder ? 0.12 : 0.32)),
+                    radius: isFloating ? 14 : (isInFolder ? 3 : 10),
+                    y: isInFolder ? 2 : 6
+                )
+                .scaleEffect(isFloating ? 1.12 : (isMergeTarget ? 1.14 : (hovering || isSelected ? 1.06 : 1)))
                 .contentShape(Rectangle())
                 .onHover { hovering = $0 }
                 .modifier(
@@ -291,27 +483,198 @@ struct AppIconCell: View {
                 }
 
             Text(app.name)
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 13, weight: isInFolder ? .regular : .medium))
                 .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.75), radius: 3, y: 1)
-                .lineLimit(2)
+                .shadow(color: .black.opacity(isInFolder ? 0.16 : 0.75), radius: isInFolder ? 1 : 3, y: 1)
+                .lineLimit(isInFolder ? 1 : 2)
                 .multilineTextAlignment(.center)
-                .frame(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.labelHeight, alignment: .top)
+                .frame(width: labelWidth, height: isInFolder ? 20 : LaunchpadMetrics.labelHeight, alignment: .top)
                 .allowsHitTesting(false)
         }
-        .frame(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.iconBlockHeight)
+        .frame(width: labelWidth, height: isInFolder ? LaunchpadMetrics.iconSize + 26 : LaunchpadMetrics.iconBlockHeight)
         .fixedSize()
         .background {
-            if isSelected && !isFloating && !isPlaceholder {
+            if (isSelected || isMergeTarget) && !isFloating && !isPlaceholder {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(.white.opacity(0.12))
+                    .fill(.white.opacity(isMergeTarget ? 0.22 : 0.12))
                     .padding(-10)
                     .allowsHitTesting(false)
             }
         }
-        .opacity(isPlaceholder ? 0.28 : 1)
+        .opacity(hideWhileMerging ? 0 : (isPlaceholder ? 0.22 : 1))
         .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(.easeOut(duration: 0.12), value: isMergeTarget)
         .allowsHitTesting(!isFloating)
+        .accessibilityElement(children: .ignore)
+        .help(app.name)
+        .accessibilityLabel(app.name)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onLaunch() }
+        .accessibilityAction(named: Text("在 Finder 中显示")) { onReveal() }
+        .accessibilityHidden(isFloating)
+    }
+}
+
+struct FolderOverlay: View {
+    @Bindable var store: LaunchpadStore
+    @FocusState private var nameFocused: Bool
+
+    private let panelCorner: CGFloat = 40
+
+    var body: some View {
+        GeometryReader { geo in
+            let apps = store.openFolderApps
+            let expanded = store.isFolderExpanded
+            // Keep the native wide folder silhouette; distribute columns across it.
+            let panelWidth = min(max(1, geo.size.width - 32), max(280, geo.size.width * 0.83))
+            let hPad = max(16, min(28, panelWidth * 0.016))
+            let columnCount = max(1, min(7, Int((panelWidth - hPad * 2) / 132)))
+            let columnWidth = max(1, (panelWidth - hPad * 2) / CGFloat(columnCount))
+            let labelWidth = max(LaunchpadMetrics.iconSize, columnWidth - 12)
+            let vPad = min(40, max(22, geo.size.height * 0.037))
+            let rowCount = max(1, (apps.count + columnCount - 1) / columnCount)
+            let maxPanelHeight = max(1, min(geo.size.height * 0.663, geo.size.height - 144))
+            let rowHeight = max(132, min(180, (maxPanelHeight - vPad * 2) / 4))
+            let panelHeight = min(maxPanelHeight, CGFloat(min(rowCount, 4)) * rowHeight + vPad * 2)
+
+            ZStack {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .onTapGesture { store.closeFolder() }
+
+                VStack(spacing: 18) {
+                    TextField("文件夹", text: $store.folderNameDraft)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 28, weight: .light))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.12), radius: 1, y: 1)
+                        .focused($nameFocused)
+                        .onSubmit {
+                            store.commitOpenFolderName()
+                            nameFocused = false
+                        }
+                        .onChange(of: nameFocused) { _, focused in
+                            if !focused { store.commitOpenFolderName() }
+                        }
+                        .frame(width: min(panelWidth - 32, 480), height: 36)
+                        .accessibilityLabel("文件夹名称")
+
+                    ScrollViewReader { scroll in
+                        ScrollView(.vertical) {
+                            LazyVGrid(
+                                columns: Array(
+                                    repeating: GridItem(.flexible(minimum: 0), spacing: 0),
+                                    count: columnCount
+                                ),
+                                alignment: .leading,
+                                spacing: 0
+                            ) {
+                                ForEach(apps, id: \.id) { app in
+                                    FolderAppCell(store: store, app: app, overlaySize: geo.size, labelWidth: labelWidth)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: rowHeight)
+                                        .id(LaunchpadItem.app(app).id)
+                                }
+                            }
+                            .padding(.horizontal, hPad)
+                        }
+                        .scrollDisabled(store.dragSourceIsFolder)
+                        // Also suppress legacy scrollers when macOS is set to Always.
+                        .scrollIndicators(.never)
+                        .frame(width: panelWidth, height: max(1, panelHeight - vPad * 2))
+                        .padding(.vertical, vPad)
+                        .onChange(of: store.selectedID) { _, selectedID in
+                            guard let selectedID else { return }
+                            withAnimation(.easeOut(duration: 0.16)) {
+                                scroll.scrollTo(selectedID)
+                            }
+                        }
+                    }
+                    .clipShape(.rect(cornerRadius: panelCorner))
+                    .contentShape(RoundedRectangle(cornerRadius: panelCorner))
+                    .onTapGesture { nameFocused = false }
+                    .background {
+                        // Wallpaper is already blurred. A neutral translucent surface
+                        // reproduces the original Launchpad frost without glass highlights.
+                        RoundedRectangle(cornerRadius: panelCorner, style: .continuous)
+                            .fill(Color(white: 0.65).opacity(0.82))
+                            .allowsHitTesting(false)
+                    }
+                    .shadow(color: .black.opacity(0.08), radius: 18, y: 8)
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named("folderOverlay"))
+                    } action: { frame in
+                        store.folderPanelFrame = frame
+                    }
+                }
+                .scaleEffect(expanded ? 1 : 0.88, anchor: .center)
+                .opacity(expanded ? 1 : 0)
+                .position(x: geo.size.width / 2, y: geo.size.height * 0.465)
+
+                if case .app(let app) = store.draggingItem,
+                   store.dragSourceIsFolder,
+                   let pos = store.dragPosition {
+                    AppIconCell(
+                        app: app,
+                        isSelected: false,
+                        isFloating: true,
+                        isInFolder: true,
+                        labelWidth: labelWidth,
+                        onLaunch: {},
+                        onReveal: {}
+                    )
+                    .position(pos)
+                    .allowsHitTesting(false)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .coordinateSpace(name: "folderOverlay")
+            .onAppear { store.folderColumns = columnCount }
+            .onChange(of: columnCount) { _, count in store.folderColumns = count }
+            .onDisappear { store.folderPanelFrame = .zero }
+        }
+    }
+}
+
+/// Keep the drag origin in the same space as the floating icon, including scroll offset.
+private struct FolderAppCell: View {
+    @Bindable var store: LaunchpadStore
+    let app: InstalledApp
+    let overlaySize: CGSize
+    let labelWidth: CGFloat
+
+    @State private var frameInOverlay: CGRect = .zero
+
+    var body: some View {
+        let itemID = LaunchpadItem.app(app).id
+        AppIconCell(
+            app: app,
+            isSelected: store.selectedID == itemID,
+            isPlaceholder: store.draggingItem?.id == itemID && store.dragSourceIsFolder,
+            isInFolder: true,
+            labelWidth: labelWidth,
+            onLaunch: { OverlayController.shared.launch(app) },
+            onReveal: { store.revealInFinder(app) },
+            onLift: {
+                guard let folderID = store.openFolderID, !frameInOverlay.isEmpty else { return }
+                store.beginFolderDrag(
+                    app,
+                    folderID: folderID,
+                    startInOverlay: CGPoint(x: frameInOverlay.midX, y: frameInOverlay.midY)
+                )
+            },
+            onDrag: { translation in
+                store.updateDrag(translation: translation, pageFrame: overlaySize)
+            },
+            onDrop: { store.endFolderDrag() }
+        )
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .named("folderOverlay"))
+        } action: { frame in
+            frameInOverlay = frame
+        }
     }
 }
 
@@ -322,17 +685,24 @@ private struct IconPressModifier: ViewModifier {
     let onDrop: () -> Void
 
     @State private var lifted = false
+    @GestureState private var gestureActive = false
 
     func body(content: Content) -> some View {
         if enabled {
-            content.gesture(dragGesture)
+            content
+                .gesture(dragGesture)
+                .onChange(of: gestureActive) { _, active in
+                    if !active { lifted = false }
+                }
+                .onDisappear { lifted = false }
         } else {
             content
         }
     }
 
     private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 2, coordinateSpace: .global)
+        DragGesture(minimumDistance: 6, coordinateSpace: .global)
+            .updating($gestureActive) { _, active, _ in active = true }
             .onChanged { drag in
                 if !lifted {
                     lifted = true
@@ -340,10 +710,9 @@ private struct IconPressModifier: ViewModifier {
                 }
                 onDrag(drag.translation)
             }
-            .onEnded { _ in
-                if lifted {
-                    onDrop()
-                }
+            .onEnded { drag in
+                onDrag(drag.translation)
+                onDrop()
                 lifted = false
             }
     }
@@ -363,8 +732,13 @@ struct PageIndicator: View {
                     Circle()
                         .fill(.white.opacity(index == current ? 0.95 : 0.35))
                         .frame(width: 7, height: 7)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("第 \(index + 1) 页，共 \(count) 页")
+                .accessibilityValue(index == current ? "当前页" : "")
+                .help("第 \(index + 1) 页")
             }
         }
         .padding(.horizontal, 12)

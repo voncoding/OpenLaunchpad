@@ -2,7 +2,7 @@ import AppKit
 import QuartzCore
 import SwiftUI
 
-enum LaunchpadMetrics {
+nonisolated enum LaunchpadMetrics {
     static let iconSize: CGFloat = 96
     static let iconPixelSize: CGFloat = 192
     static let cellWidth: CGFloat = 156
@@ -14,22 +14,13 @@ enum LaunchpadMetrics {
 }
 
 struct PagingScrollHost: NSViewRepresentable {
-    let pages: [[InstalledApp]]
-    let columns: Int
-    let rows: Int
-    let selectedID: URL?
-    var isReordering: Bool = false
-    var draggingID: URL?
-    @Binding var currentPage: Int
-    let size: CGSize
+    @Bindable var store: LaunchpadStore
+    let pageFrame: CGSize
+    var horizontalInset: CGFloat = 0
     let onLaunch: (InstalledApp) -> Void
     let onReveal: (InstalledApp) -> Void
+    let onOpenFolder: (LaunchpadFolder) -> Void
     let onEmptyTap: () -> Void
-    var onLift: ((InstalledApp) -> Void)?
-    var onDrag: ((CGSize) -> Void)?
-    var onDrop: (() -> Void)?
-    var draggingApp: InstalledApp?
-    var dragPosition: CGPoint?
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -38,9 +29,9 @@ struct PagingScrollHost: NSViewRepresentable {
     func makeNSView(context: Context) -> LaunchpadPagerView {
         let view = LaunchpadPagerView()
         view.coordinator = context.coordinator
-        context.coordinator.onPageSettled = { page in
-            if currentPage != page {
-                currentPage = page
+        context.coordinator.onPageSettled = { [store] page in
+            if store.currentPage != page {
+                store.goToPage(page)
             }
         }
         updateNSView(view, context: context)
@@ -48,65 +39,59 @@ struct PagingScrollHost: NSViewRepresentable {
     }
 
     func updateNSView(_ view: LaunchpadPagerView, context: Context) {
-        context.coordinator.onPageSettled = { page in
-            if currentPage != page {
-                currentPage = page
+        context.coordinator.onPageSettled = { [store] page in
+            if store.currentPage != page {
+                store.goToPage(page)
             }
         }
-
+        let pages = store.pages
         let pageCount = max(pages.count, 1)
+        // Structural only — never include drag/merge ids or the hosting tree is rebuilt
+        // mid-gesture and endDrag never runs (ghost icon stuck).
         let signature = ContentSignature(
-            pageIDs: pages.map { $0.map(\.id) },
-            columns: columns,
-            rows: rows,
-            size: size,
-            selectedID: selectedID,
-            draggingID: draggingID,
-            dragPosition: dragPosition
+            columns: store.columns,
+            rows: store.rows,
+            size: pageFrame,
+            horizontalInset: horizontalInset
         )
 
         if context.coordinator.signature != signature {
             context.coordinator.signature = signature
             view.updateContent(
                 rootView: PagesStrip(
-                    pages: pages,
-                    pageSize: size,
-                    columns: columns,
-                    rows: rows,
-                    selectedID: selectedID,
+                    store: store,
+                    pageSize: pageFrame,
                     onLaunch: onLaunch,
                     onReveal: onReveal,
+                    onOpenFolder: onOpenFolder,
                     onEmptyTap: onEmptyTap,
-                    draggingID: draggingID,
-                    onLift: onLift,
-                    onDrag: onDrag,
-                    onDrop: onDrop,
-                    draggingApp: draggingApp,
-                    dragPosition: dragPosition
+                    pageFrame: CGSize(width: max(pageFrame.width - 2 * horizontalInset, 1), height: pageFrame.height),
+                    horizontalInset: horizontalInset
                 ),
-                pageWidth: max(size.width, 1),
-                pageHeight: max(size.height, 1),
+                pageWidth: max(pageFrame.width, 1),
+                pageHeight: max(pageFrame.height, 1),
                 pageCount: pageCount
             )
         } else {
             view.updateMetrics(
-                pageWidth: max(size.width, 1),
-                pageHeight: max(size.height, 1),
+                pageWidth: max(pageFrame.width, 1),
+                pageHeight: max(pageFrame.height, 1),
                 pageCount: pageCount
             )
         }
 
         view.onEmptyTap = onEmptyTap
-        view.isReordering = isReordering
+        view.isReordering = store.isReordering
         view.updateGrid(
-            columns: columns,
-            rows: rows,
-            appsOnPages: pages.map(\.count)
+            columns: store.columns,
+            rows: store.rows,
+            appsOnPages: pages.map(\.count),
+            horizontalInset: horizontalInset
         )
 
-        if !view.isTracking, view.settledPage != currentPage {
+        if !view.isTracking, view.settledPage != store.currentPage {
             let animated = context.coordinator.didApplyInitialPage
-            view.scrollToPage(currentPage, animated: animated)
+            view.scrollToPage(store.currentPage, animated: animated)
         }
         context.coordinator.didApplyInitialPage = true
     }
@@ -116,70 +101,59 @@ struct PagingScrollHost: NSViewRepresentable {
         var onPageSettled: ((Int) -> Void)?
         var signature: ContentSignature?
         var didApplyInitialPage = false
+
     }
 }
 
 struct ContentSignature: Equatable {
-    var pageIDs: [[URL]]
     var columns: Int
     var rows: Int
     var size: CGSize
-    var selectedID: URL?
-    var draggingID: URL?
-    var dragPosition: CGPoint?
+    var horizontalInset: CGFloat
 }
 
 struct PagesStrip: View {
-    let pages: [[InstalledApp]]
+    @Bindable var store: LaunchpadStore
     let pageSize: CGSize
-    let columns: Int
-    let rows: Int
-    let selectedID: URL?
     let onLaunch: (InstalledApp) -> Void
     let onReveal: (InstalledApp) -> Void
+    let onOpenFolder: (LaunchpadFolder) -> Void
     let onEmptyTap: () -> Void
-    var draggingID: URL?
-    var onLift: ((InstalledApp) -> Void)?
-    var onDrag: ((CGSize) -> Void)?
-    var onDrop: (() -> Void)?
-    var draggingApp: InstalledApp?
-    var dragPosition: CGPoint?
+    let pageFrame: CGSize
+    var horizontalInset: CGFloat = 0
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            HStack(spacing: 0) {
-                ForEach(Array(pages.enumerated()), id: \.offset) { _, pageApps in
-                    AppGridPage(
-                        apps: pageApps,
-                        columns: columns,
-                        rows: rows,
-                        selectedID: selectedID,
-                        onLaunch: onLaunch,
-                        onReveal: onReveal,
-                        onEmptyTap: onEmptyTap,
-                        draggingID: draggingID,
-                        onLift: onLift,
-                        onDrag: onDrag,
-                        onDrop: onDrop
-                    )
-                    .frame(width: pageSize.width, height: pageSize.height)
-                }
-            }
-
-            if let draggingApp, let dragPosition {
-                AppIconCell(
-                    app: draggingApp,
-                    isSelected: false,
-                    isFloating: true,
-                    onLaunch: {},
-                    onReveal: {}
+        HStack(spacing: 0) {
+            ForEach(Array(store.pages.enumerated()), id: \.offset) { _, pageItems in
+                ItemGridPage(
+                    items: pageItems,
+                    columns: store.columns,
+                    rows: store.rows,
+                    selectedID: store.selectedID,
+                    onLaunch: onLaunch,
+                    onReveal: onReveal,
+                    onOpenFolder: onOpenFolder,
+                    onEmptyTap: onEmptyTap,
+                    fillsPage: true,
+                    draggingID: store.draggingItem?.id,
+                    mergeTargetID: store.mergeTargetID,
+                    onLift: { item in
+                        store.beginDrag(item, pageFrame: pageFrame)
+                    },
+                    onDrag: { translation in
+                        store.updateDrag(translation: translation, pageFrame: pageFrame)
+                    },
+                    onDrop: {
+                        store.endDrag()
+                    },
+                    resolveFolderApps: { store.apps(in: $0) }
                 )
-                .position(dragPosition)
-                .allowsHitTesting(false)
+                .frame(width: max(pageSize.width - 2 * horizontalInset, 1), height: pageSize.height)
+                .padding(.horizontal, horizontalInset)
             }
         }
         .frame(
-            width: pageSize.width * CGFloat(max(pages.count, 1)),
+            width: pageSize.width * CGFloat(max(store.pages.count, 1)),
             height: pageSize.height,
             alignment: .topLeading
         )
@@ -204,6 +178,7 @@ final class LaunchpadPagerView: NSView {
     private var pageCount = 1
     private var gridColumns = 7
     private var gridRows = 5
+    private var gridInset: CGFloat = 0
     private var appsOnPages: [Int] = []
     private var offset: CGFloat = 0
     private var axisLock: Axis?
@@ -224,6 +199,7 @@ final class LaunchpadPagerView: NSView {
         layerContentsRedrawPolicy = .onSetNeedsDisplay
         clipsToBounds = true
         clipLayerHost.wantsLayer = true
+        clipLayerHost.clipsToBounds = true
         clipLayerHost.layerContentsRedrawPolicy = .onSetNeedsDisplay
         addSubview(clipLayerHost)
         gapCatcher.pager = self
@@ -311,9 +287,10 @@ final class LaunchpadPagerView: NSView {
         }
     }
 
-    func updateGrid(columns: Int, rows: Int, appsOnPages: [Int]) {
+    func updateGrid(columns: Int, rows: Int, appsOnPages: [Int], horizontalInset: CGFloat = 0) {
         gridColumns = max(columns, 1)
         gridRows = max(rows, 1)
+        gridInset = max(horizontalInset, 0)
         self.appsOnPages = appsOnPages
     }
 
@@ -341,7 +318,7 @@ final class LaunchpadPagerView: NSView {
             isTracking = true
         }
         offset = rubberBand(gestureStartOffset - dx)
-        smoothedDelta = smoothedDelta * 0.65 + deltaX * 0.35
+        smoothedDelta = smoothedDelta * 0.65 - deltaX * 0.35
         applyOffset(offset, animated: false)
     }
 
@@ -360,14 +337,14 @@ final class LaunchpadPagerView: NSView {
     }
 
     /// Only the icon square counts — not the label, not the surrounding cell padding.
-    fileprivate func isPointOnIcon(_ locationInPager: CGPoint) -> Bool {
+    func isPointOnIcon(_ locationInPager: CGPoint) -> Bool {
         let contentX = locationInPager.x + offset
         let pageIndex = Int(floor(contentX / max(pageWidth, 1)))
         guard pageIndex >= 0, pageIndex < pageCount else { return false }
 
-        let xInPage = contentX - CGFloat(pageIndex) * pageWidth
+        let xInPage = contentX - CGFloat(pageIndex) * pageWidth - gridInset
         let yInPage = locationInPager.y
-        let cellWidth = pageWidth / CGFloat(gridColumns)
+        let cellWidth = (pageWidth - 2 * gridInset) / CGFloat(gridColumns)
         let cellHeight = pageHeight / CGFloat(gridRows)
         guard cellWidth > 1, cellHeight > 1 else { return false }
 
@@ -389,9 +366,14 @@ final class LaunchpadPagerView: NSView {
         return iconRect.contains(CGPoint(x: xInPage, y: yInPage))
     }
 
-    private func handleScroll(_ event: NSEvent) -> Bool {
+    func handleScroll(_ event: NSEvent) -> Bool {
         let location = convert(event.locationInWindow, from: nil)
-        guard bounds.contains(location), pageWidth > 1, pageCount > 1 else { return false }
+        // A gesture that started here must receive its end/cancel even if the
+        // pointer has since moved outside. Otherwise the strip stays half-paged.
+        guard bounds.contains(location) || isTracking || axisLock != nil,
+              pageWidth > 1, pageCount > 1 else { return false }
+
+        guard !isReordering else { return true }
 
         let dx = event.hasPreciseScrollingDeltas ? event.scrollingDeltaX : event.scrollingDeltaX * 16
         let dy = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 16
@@ -409,7 +391,10 @@ final class LaunchpadPagerView: NSView {
         }
 
         if event.phase.contains(.changed) || event.phase == [] {
-            if event.phase == [], abs(dx) > abs(dy), abs(dx) > 1, axisLock == nil {
+            if event.phase == [] {
+                // Discrete mouse wheels have no ended phase; never leave an axis lock behind.
+                axisLock = nil
+                guard abs(dx) > abs(dy), abs(dx) > 1 else { return true }
                 let next = settledPage + (dx < 0 ? 1 : -1)
                 scrollToPage(next, animated: true)
                 coordinator?.onPageSettled?(settledPage)

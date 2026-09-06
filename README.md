@@ -19,12 +19,14 @@ It restores a familiar full-screen app launcher with search, paging, and drag-to
 
 [Download latest release](https://github.com/voncoding/OpenLaunchpad/releases/latest) · [中文说明](#安装-install)
 
+本次更新 **v1.1.0**：文件夹、独立分页及翻页边缘修复。详见 [更新日志 / Changelog](CHANGELOG.md)。
+
 ---
 
 ## Why OpenLaunchpad
 
 - macOS Tahoe removed Launchpad — this brings it back as a lightweight native app
-- Blurred desktop wallpaper overlay (Dock & menu bar stay on top)
+- Blurred desktop wallpaper overlay (Dock & menu bar auto-hide only inside a folder)
 - Chinese name / Pinyin / initials search
 - Trackpad paging + mouse drag on empty space
 - Icon reorder with remembered page
@@ -77,7 +79,18 @@ xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
 - **Close**：Esc, or click empty space  
 - **Search**：click the search field first (no auto-focus)  
 - **Page**：trackpad swipe, or drag on gaps between icons  
-- **Reorder**：drag icons  
+- **Reorder**：drag an icon to a new position and release; hold near a page edge to move between pages
+- **Folders**：pause over the center of another icon until it highlights, then release to create or join a folder
+- **Move out of a folder**：drag an app outside the folder panel and release; it returns beside the folder
+- **Keyboard**：arrow keys select apps; Return opens the selection, including folders; Escape cancels a drag before closing the folder or launcher
+
+拖放即可排序；在目标图标中心稍作停留、出现高亮后松手，可创建文件夹或放入已有文件夹。拖到页面边缘稍停可跨页移动，按 Escape 可取消。文件夹内应用较多时可以滚动，拖出面板可移回主网格。
+
+每页独立保存：移走图标、合并文件夹或卸载应用后，当前页底部可以留空，不会从下一页自动补齐；重新打开后仍保留分页。新安装的应用添加到最后一页。
+
+文件夹采用接近原生启动台的宽幅浅灰面板，最多显示四行，更多应用可滚动查看，滚动条隐藏。仅展开文件夹时，程序坞和菜单栏会自动隐藏；回到主网格后恢复。
+
+开发时运行 `./scripts/test-interactions.sh` 可检查拖拽、文件夹、搜索选择、页码恢复和扫描刷新等关键交互。测试使用隔离的数据，不会启动其他应用或改动现有排序。
 
 ---
 
