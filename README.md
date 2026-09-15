@@ -17,7 +17,7 @@ It restores a familiar full-screen app launcher with search, paging, and drag-to
 
 **OpenLaunchpad** 是面向 **macOS Tahoe（macOS 26）** 的原生启动台替代应用：全屏应用网格、拼音搜索、翻页与拖拽排序。
 
-[Download latest release](https://github.com/voncoding/OpenLaunchpad/releases/latest) · [中文说明](#安装-install)
+[官网 Website](https://voncoding.github.io/OpenLaunchpad/) · [Download latest release](https://github.com/voncoding/OpenLaunchpad/releases/latest) · [中文说明](#install-安装)
 
 ---
 
@@ -93,7 +93,7 @@ SwiftUI + AppKit hybrid: borderless overlay window, AppKit-driven paging, SwiftU
 No. It is an independent open-source alternative for macOS Tahoe.
 
 **Can I use a custom domain?**  
-The GitHub repository itself cannot bind a domain. You can host a simple landing page with **GitHub Pages** (e.g. `docs/` or `gh-pages`) and point your domain there, linking to Releases for downloads.
+The [product website](https://voncoding.github.io/OpenLaunchpad/) runs on **GitHub Pages**, published from `codex/website` → `/docs`. See [website maintenance and custom domain setup](WEBSITE.md) for publishing and DNS instructions.
 
 **Gatekeeper warning?**  
 Unsigned / ad-hoc signed builds may need “Open Anyway” in Privacy & Security.

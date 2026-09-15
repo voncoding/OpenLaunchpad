@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8faff">
+  <title>OpenLaunchpad — 把熟悉的启动台带回 Mac</title>
+  <meta name="description" content="OpenLaunchpad 是面向 macOS 26 的开源原生启动台。全屏应用网格、拼音搜索、触控板翻页，让打开应用回到熟悉的方式。当前下载适用于 Apple Silicon Mac。">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/app-icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <script src="site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <header class="site-header">
+    <nav class="navigation wrap" aria-label="主导航">
+      <a class="brand" href="./" aria-label="OpenLaunchpad 首页"><img src="assets/app-icon.png" width="36" height="36" alt=""><span>OpenLaunchpad</span></a>
+      <div class="nav-links"><a href="#features">功能</a><a href="#install">安装</a><a class="nav-source" href="https://github.com/voncoding/OpenLaunchpad">GitHub <span aria-hidden="true">↗</span></a></div>
+      <a class="button button-small" href="https://github.com/voncoding/OpenLaunchpad/releases/download/v1.0.0/OpenLaunchpad.zip">下载<span class="desktop-only"> Mac 版</span> <span aria-hidden="true">↓</span></a>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div class="hero-mark"><img src="assets/app-icon.png" width="90" height="90" alt="OpenLaunchpad 应用图标"></div>
+      <p class="eyebrow">原生 macOS 应用 <span aria-hidden="true">/</span> 免费开源</p>
+      <h1 id="hero-title">熟悉的启动台。<br><span>回到你的 Mac。</span></h1>
+      <p class="hero-description">一屏找到应用，像以前一样顺手。<br>为 macOS 26 带回全屏网格、拼音搜索和轻松翻页。</p>
+      <div class="hero-actions"><a class="button" href="https://github.com/voncoding/OpenLaunchpad/releases/download/v1.0.0/OpenLaunchpad.zip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></svg>下载 OpenLaunchpad</a><a class="button button-secondary" href="https://github.com/voncoding/OpenLaunchpad">查看源代码 <span aria-hidden="true">↗</span></a></div>
+      <p class="release-note">稳定版 v1.0.0 <span aria-hidden="true">·</span> macOS 26.0+ <span aria-hidden="true">·</span> Apple Silicon</p>
+    </section>
+    <section class="showcase wrap" aria-label="应用界面预览">
+      <div class="preview-toolbar"><span class="preview-label">原生界面，一眼熟悉</span><div class="preview-tabs" role="tablist" aria-label="选择预览界面"><button id="tab-grid" type="button" role="tab" aria-selected="true" aria-controls="panel-grid">应用网格</button><button id="tab-folder" type="button" role="tab" aria-selected="false" aria-controls="panel-folder" tabindex="-1">文件夹</button></div></div>
+      <div class="preview-frame"><div id="panel-grid" role="tabpanel" aria-labelledby="tab-grid" tabindex="0"><img src="assets/launchpad-grid.png" width="1440" height="900" alt="OpenLaunchpad 全屏应用网格，蓝色背景上整齐排列系统应用，上方有搜索框" fetchpriority="high"></div><div id="panel-folder" role="tabpanel" aria-labelledby="tab-folder" tabindex="0" hidden><img src="assets/launchpad-folder.png" width="1440" height="900" alt="OpenLaunchpad 展开的实用工具文件夹，浅灰圆角面板内排列两行应用图标" loading="lazy"></div></div>
+      <div class="preview-caption"><span>v1.1 开发版界面 · 使用示例应用展示</span><div class="shortcut"><span>随时唤起</span><div aria-label="Option 加 Command 加 L"><kbd>⌥</kbd><kbd>⌘</kbd><kbd>L</kbd></div></div></div>
+    </section>
+    <section class="features wrap" id="features" aria-labelledby="features-title">
+      <div class="section-heading"><p class="eyebrow">简单的事，顺手完成</p><h2 id="features-title">你的应用，各就各位。</h2><p>保留熟悉的操作，让注意力回到你要做的事。</p></div>
+      <div class="feature-grid">
+        <article class="feature"><svg class="feature-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg><h3>想到名字，就能找到</h3><p>中文名称、拼音、首字母都能搜。不必记住应用完整的英文名字。</p></article>
+        <article class="feature"><svg class="feature-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h5v5H4zm11 0h5v5h-5zM4 15h5v5H4zm11 0h5v5h-5z"/></svg><h3>熟悉的全屏网格</h3><p>所有应用一目了然。拖动图标调整顺序，下次打开，仍在你安排的位置。</p></article>
+        <article class="feature"><svg class="feature-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5-6 7 6 7m8-14 6 7-6 7M11 12h2"/></svg><h3>轻轻一滑，下一页</h3><p>用触控板两指翻页，也能在空白处用鼠标拖动。记住上次停留的页面。</p></article>
+      </div>
+    </section>
+    <section class="next-version wrap" aria-labelledby="next-title"><div class="next-intro"><span class="version-badge">v1.1 开发预览</span><h2 id="next-title">再多一点，<br>你的使用习惯。</h2><p>最近的改进正在开发版中打磨，<br>将随后续版本发布。</p><a class="text-link" href="https://github.com/voncoding/OpenLaunchpad/tree/codex/release-1.1.0">查看开发进展 <span aria-hidden="true">↗</span></a></div><div class="next-features"><article><span class="next-number">01</span><div><h3>把相关应用放在一起</h3><p>拖放创建文件夹，按你的习惯命名、整理和打开。</p></div></article><article><span class="next-number">02</span><div><h3>每一页，都留一点余地</h3><p>自由调整网格行列。当前页留空时，下一页的应用不会自动补上来。</p></div></article><article><span class="next-number">03</span><div><h3>只看到你想看到的</h3><p>在设置中隐藏不常用的应用，随时恢复。菜单栏图标也能按需开关。</p></div></article></div></section>
+    <section class="install-section" id="install" aria-labelledby="install-title"><div class="wrap install-layout"><div><p class="eyebrow">开始使用</p><h2 id="install-title">装好。打开。<br>还是那个熟悉的动作。</h2><p>支持 macOS 26.0 及以上版本，<br>当前安装包适用于 Apple Silicon Mac。</p><a class="text-link" href="https://github.com/voncoding/OpenLaunchpad/releases/tag/v1.0.0">查看 v1.0.0 发布说明 <span aria-hidden="true">↗</span></a></div><ol class="install-steps"><li><span class="step-number">01</span><div><h3>下载并解压</h3><p>下载 OpenLaunchpad.zip，双击解压得到应用。</p></div></li><li><span class="step-number">02</span><div><h3>拖入「应用程序」</h3><p>将 OpenLaunchpad.app 移到「应用程序」，它的显示名称是「启动台」。</p></div></li><li><span class="step-number">03</span><div><h3>按下 ⌥⌘L</h3><p>首次打开应用后，用快捷键、程序坞或菜单栏图标唤起启动台。</p></div></li></ol></div></section>
+    <section class="faq wrap" aria-labelledby="faq-title"><div><p class="eyebrow">常见问题</p><h2 id="faq-title">开始之前，<br>你可能想知道。</h2></div><div class="faq-list"><details><summary>这是 Apple 官方的启动台吗？</summary><p>不是。OpenLaunchpad 是独立开发的开源应用，使用 SwiftUI 和 AppKit 构建，与 Apple 无隶属关系。</p></details><details><summary>需要付费或注册账号吗？</summary><p>不需要。OpenLaunchpad 免费使用，源代码采用 MIT 许可，可以在 GitHub 查看。</p></details><details><summary>Intel Mac 可以使用吗？</summary><p>当前 v1.0.0 下载包仅包含 Apple Silicon 版本。Intel 用户可参照 <a class="inline-link" href="https://github.com/voncoding/OpenLaunchpad#install-安装">仓库中的构建说明</a>，在 Intel Mac 上从源代码构建。</p></details><details><summary>为什么下载后没有文件夹等新版功能？</summary><p>目前公开下载的是稳定版 v1.0.0。本站界面预览包含 v1.1 开发版，文件夹、自定义网格和应用隐藏等功能尚未发布。正式版本会更新在 GitHub Releases 中。</p></details><details><summary>首次打开时，macOS 提示无法验证怎么办？</summary><p>当前发布包使用临时签名，尚未经过 Apple 公证。请确认下载来源是本项目的 GitHub Releases；确认后，可按 macOS 提示前往「系统设置 → 隐私与安全性」选择「仍要打开」。</p></details></div></section>
+    <section class="closing wrap" aria-label="下载启动台"><div><img src="assets/app-icon.png" width="64" height="64" alt=""><h2>打开应用，回到熟悉的方式。</h2></div><a class="button" href="https://github.com/voncoding/OpenLaunchpad/releases/download/v1.0.0/OpenLaunchpad.zip">下载稳定版 v1.0.0 <span aria-hidden="true">↓</span></a></section>
+  </main>
+  <footer class="wrap footer"><a class="brand" href="./"><img src="assets/app-icon.png" width="28" height="28" alt=""><span>OpenLaunchpad</span></a><p>独立开源项目，与 Apple 无隶属关系。</p><div><a href="https://github.com/voncoding/OpenLaunchpad/blob/main/LICENSE">MIT 许可</a><a href="https://github.com/voncoding/OpenLaunchpad/issues">反馈问题 <span aria-hidden="true">↗</span></a></div></footer>
+</body>
+</html>
