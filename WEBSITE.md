@@ -1,6 +1,8 @@
 # 官网维护与域名绑定
 
-官网地址：https://voncoding.github.io/OpenLaunchpad/
+官网地址：https://appledev.app/
+
+GitHub Pages 已绑定 `appledev.app`，域名 DNS 由 Cloudflare 管理。首次访问需要先完成下面的解析配置并等待 HTTPS 证书签发。
 
 ## 发布方式
 
@@ -15,6 +17,7 @@ GitHub Pages 使用 `codex/website` 分支的 `/docs` 目录。修改网站时�
 | `docs/site.js` | 界面预览切换与键盘操作 |
 | `docs/assets/` | 应用图标和界面截图 |
 | `docs/.nojekyll` | 直接发布静态文件 |
+| `docs/CNAME` | 官网域名 `appledev.app`，后续部署须保留 |
 
 本地预览，在仓库根目录运行：
 
@@ -30,7 +33,13 @@ python3 -m http.server 4173 --bind 127.0.0.1 --directory docs
 
 发布新版安装包后，再同步修改 `docs/index.html` 中的下载链接、版本说明、发布说明链接和开发预览文案。请保留稳定版与未发布功能的区分。
 
-## 绑定自己的域名
+## appledev.app 的解析设置
+
+进入 Cloudflare → `appledev.app` → DNS → Records，为名称 `@` 分别添加下表中的四条 A 记录，TTL 使用 Auto。首次接入建议将这四条记录的代理状态均设为 **DNS only（灰云）**，让 DNS 直接返回 GitHub Pages 的地址。Cloudflare 的代理状态说明见[官方文档](https://developers.cloudflare.com/dns/proxy-status/)。
+
+如需 `www.appledev.app` 入口，再添加名称 `www`、目标 `voncoding.github.io` 的 CNAME 记录。
+
+## 以后更换域名
 
 先在 GitHub 绑定域名，再修改 DNS：
 
