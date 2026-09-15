@@ -124,7 +124,7 @@ struct PagesStrip: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(Array(store.pages.enumerated()), id: \.offset) { _, pageItems in
+            ForEach(Array(store.pages.enumerated()), id: \.offset) { pageIndex, pageItems in
                 ItemGridPage(
                     items: pageItems,
                     columns: store.columns,
@@ -148,6 +148,7 @@ struct PagesStrip: View {
                     },
                     resolveFolderApps: { store.apps(in: $0) }
                 )
+                .environment(\.appIconLoadingEnabled, abs(pageIndex - store.currentPage) <= 1)
                 .frame(width: max(pageSize.width - 2 * horizontalInset, 1), height: pageSize.height)
                 .padding(.horizontal, horizontalInset)
             }

@@ -35,6 +35,13 @@ final class LaunchpadStore {
     var isPresented = false
     var columns = 7
     var rows = 5
+    private(set) var usesAutomaticGrid: Bool
+    private(set) var preferredColumns: Int
+    private(set) var preferredRows: Int
+    private(set) var maximumColumns = 7
+    private(set) var maximumRows = 5
+    private(set) var hiddenAppPaths: Set<String>
+    @ObservationIgnored private var lastLayoutSize: CGSize?
     var isLoading = true
     var wallpaper: NSImage?
     var topInset: CGFloat = 28
@@ -63,6 +70,13 @@ final class LaunchpadStore {
     @ObservationIgnored private var mergeTask: Task<Void, Never>?
     @ObservationIgnored private var edgeTask: Task<Void, Never>?
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
+    @ObservationIgnored private var catalogGeneration: UInt = 0
+    @ObservationIgnored private var completedCatalogGeneration: UInt?
+    @ObservationIgnored private var lastScanTime: TimeInterval?
+    @ObservationIgnored private let scanCatalog: @MainActor () async -> [InstalledApp]
+    @ObservationIgnored private let uptime: @MainActor () -> TimeInterval
+    @ObservationIgnored private let refreshInterval: TimeInterval
+    private(set) var isRefreshing = false
     @ObservationIgnored private var pendingCatalog: [InstalledApp]?
     @ObservationIgnored private var folderAnimationTask: Task<Void, Never>?
     @ObservationIgnored private var selectionBeforeOpeningFolder: String?
@@ -73,8 +87,22 @@ final class LaunchpadStore {
     private let foldersKey = "launchpad.folders"
     private let pageKey = "launchpad.lastPage"
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        refreshInterval: TimeInterval = 300,
+        uptime: @escaping @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+        scanCatalog: @escaping @MainActor () async -> [InstalledApp] = {
+            await Task.detached(priority: .userInitiated) { AppScanner.scan() }.value
+        }
+    ) {
         self.defaults = defaults
+        self.refreshInterval = refreshInterval
+        self.uptime = uptime
+        self.scanCatalog = scanCatalog
+        usesAutomaticGrid = defaults.object(forKey: "launchpad.grid.automatic") as? Bool ?? true
+        preferredColumns = max(1, min(12, defaults.object(forKey: "launchpad.grid.columns") as? Int ?? 7))
+        preferredRows = max(1, min(8, defaults.object(forKey: "launchpad.grid.rows") as? Int ?? 5))
+        hiddenAppPaths = Set(defaults.stringArray(forKey: "launchpad.hiddenAppPaths") ?? [])
         currentPage = max(0, defaults.integer(forKey: pageKey))
     }
 
@@ -103,7 +131,7 @@ final class LaunchpadStore {
                     result.append(item)
                 }
                 for path in folder.appPaths {
-                    guard let app = appCatalog[path], !seenPaths.contains(path), app.matches(trimmed) else { continue }
+                    guard !hiddenAppPaths.contains(path), let app = appCatalog[path], !seenPaths.contains(path), app.matches(trimmed) else { continue }
                     result.append(.app(app))
                     seenPaths.insert(path)
                 }
@@ -130,7 +158,7 @@ final class LaunchpadStore {
 
     var openFolderApps: [InstalledApp] {
         guard let folder = openFolder else { return [] }
-        return folder.appPaths.compactMap { appCatalog[$0] }
+        return apps(in: folder)
     }
 
     var selectedApp: InstalledApp? {
@@ -150,7 +178,64 @@ final class LaunchpadStore {
     var appsIsEmpty: Bool { appCatalog.isEmpty }
 
     func apps(in folder: LaunchpadFolder) -> [InstalledApp] {
-        folder.appPaths.compactMap { appCatalog[$0] }
+        folder.appPaths.filter { !hiddenAppPaths.contains($0) }.compactMap { appCatalog[$0] }
+    }
+
+    var hiddenAppCount: Int { appCatalog.keys.filter { hiddenAppPaths.contains($0) }.count }
+
+    func setAppVisible(_ visible: Bool, path: String) {
+        guard let app = appCatalog[path], visible == hiddenAppPaths.contains(path) else { return }
+        cancelDrag()
+        if visible {
+            hiddenAppPaths.remove(path)
+            let belongsToFolder = items.contains { $0.folderValue?.appPaths.contains(path) == true }
+            if !belongsToFolder, position(of: LaunchpadItem.app(app).id) == nil {
+                let last = itemPages.count - 1
+                if itemPages[last].count < pageSize { itemPages[last].append(.app(app)) }
+                else { itemPages.append([.app(app)]) }
+            }
+        } else {
+            hiddenAppPaths.insert(path)
+            if let location = position(of: LaunchpadItem.app(app).id) {
+                itemPages[location.page].remove(at: location.index)
+            }
+            if selectedID == LaunchpadItem.app(app).id { selectedID = nil }
+            trimTrailingEmptyPages()
+        }
+        defaults.set(hiddenAppPaths.sorted(), forKey: "launchpad.hiddenAppPaths")
+        persistLayout()
+        clampPage()
+        prefetchVisibleIcons()
+    }
+
+    func setAutomaticGrid(_ automatic: Bool) {
+        guard usesAutomaticGrid != automatic else { return }
+        if !automatic, defaults.object(forKey: "launchpad.grid.columns") == nil {
+            preferredColumns = columns
+            preferredRows = rows
+        }
+        usesAutomaticGrid = automatic
+        saveGridSettings()
+    }
+
+    func setGridColumns(_ value: Int) {
+        preferredColumns = max(1, min(maximumColumns, value))
+        saveGridSettings()
+    }
+
+    func setGridRows(_ value: Int) {
+        preferredRows = max(1, min(maximumRows, value))
+        saveGridSettings()
+    }
+
+    private func saveGridSettings() {
+        cancelDrag()
+        defaults.set(usesAutomaticGrid, forKey: "launchpad.grid.automatic")
+        defaults.set(preferredColumns, forKey: "launchpad.grid.columns")
+        defaults.set(preferredRows, forKey: "launchpad.grid.rows")
+        if let size = lastLayoutSize {
+            updateLayout(for: size, topInset: topInset, bottomInset: bottomInset)
+        }
     }
 
     func resetForPresentation() {
@@ -163,10 +248,14 @@ final class LaunchpadStore {
         isFolderExpanded = false
         folderPanelFrame = .zero
         currentPage = max(0, defaults.integer(forKey: pageKey))
+        // A fresh scan may be waiting for a folder that was hidden without closing.
+        // Apply it now because the next reload can reuse the cached catalog.
+        applyPendingCatalog()
         clampPage()
     }
 
     func updateLayout(for size: CGSize, topInset: CGFloat, bottomInset: CGFloat) {
+        lastLayoutSize = size
         let visibleAnchor = itemPages.indices.contains(currentPage) ? itemPages[currentPage].first?.id : nil
         let previousCapacity = pageSize
         self.topInset = max(topInset, 24)
@@ -175,8 +264,10 @@ final class LaunchpadStore {
         horizontalInset = min(118, max(24, size.width * 0.08))
         let horizontalPadding = horizontalInset * 2
         let verticalChrome = self.topInset + self.bottomInset + 132
-        columns = max(1, min(7, Int((size.width - horizontalPadding) / LaunchpadMetrics.cellWidth)))
-        rows = max(1, min(5, Int((size.height - verticalChrome) / LaunchpadMetrics.cellHeight)))
+        maximumColumns = max(1, min(12, Int((size.width - horizontalPadding) / LaunchpadMetrics.cellWidth)))
+        maximumRows = max(1, min(8, Int((size.height - verticalChrome) / LaunchpadMetrics.cellHeight)))
+        columns = min(maximumColumns, usesAutomaticGrid ? 7 : preferredColumns)
+        rows = min(maximumRows, usesAutomaticGrid ? 5 : preferredRows)
         if previousCapacity != pageSize {
             // Smaller screens may split a page; larger screens never join pages.
             fitPagesToCapacity()
@@ -188,15 +279,39 @@ final class LaunchpadStore {
         clampPage()
     }
 
-    func reload() {
+    /// Reopening uses the catalog already in memory. A periodic check on open
+    /// also covers missed filesystem events without running a background timer.
+    func reload(force: Bool = false) {
+        if force { catalogGeneration &+= 1 }
         guard reloadTask == nil else { return }
-        isLoading = appCatalog.isEmpty
+        if completedCatalogGeneration == catalogGeneration,
+           let lastScanTime, uptime() - lastScanTime < refreshInterval { return }
+        let requestedGeneration = catalogGeneration
+        let scan = scanCatalog
+        isRefreshing = true
         reloadTask = Task { [weak self] in
-            let scanned = await Task.detached(priority: .userInitiated) { AppScanner.scan() }.value
+            let scanned = await scan()
             guard let self else { return }
             self.reloadTask = nil
-            self.applyScannedApps(scanned)
+            self.isRefreshing = false
+            // A change during scanning requires one more scan. Never persist a
+            // snapshot made obsolete by an installation or removal in progress.
+            guard self.catalogGeneration == requestedGeneration else {
+                self.reload()
+                return
+            }
+            self.completedCatalogGeneration = requestedGeneration
+            self.lastScanTime = self.uptime()
+            let catalog = Dictionary(scanned.map { ($0.url.path, $0) }, uniquingKeysWith: { first, _ in first })
+            if self.isLoading || self.pendingCatalog != nil || catalog != self.appCatalog {
+                self.applyScannedApps(scanned)
+            }
         }
+    }
+
+    func invalidateCatalog() {
+        catalogGeneration &+= 1
+        reload()
     }
 
     func applyScannedApps(_ scanned: [InstalledApp]) {
@@ -221,22 +336,22 @@ final class LaunchpadStore {
     func prefetchVisibleIcons() {
         let visiblePages = pages
         let pageIndex = min(max(currentPage, 0), visiblePages.count - 1)
-        var urls: [URL] = []
+        var appsToPreheat: [InstalledApp] = []
         for item in visiblePages[pageIndex] {
             switch item {
             case .app(let app):
-                urls.append(app.url)
+                appsToPreheat.append(app)
             case .folder(let folder):
-                urls.append(contentsOf: apps(in: folder).prefix(4).map(\.url))
+                appsToPreheat.append(contentsOf: apps(in: folder).prefix(4))
             }
         }
-        // Also warm neighboring page lightly.
-        if pageIndex + 1 < visiblePages.count {
-            for item in visiblePages[pageIndex + 1].prefix(columns) {
-                if case .app(let app) = item { urls.append(app.url) }
+        // Warm a few icons in either direction without loading the entire catalog.
+        for neighbor in [pageIndex - 1, pageIndex + 1] where visiblePages.indices.contains(neighbor) {
+            for item in visiblePages[neighbor].prefix(columns) {
+                if case .app(let app) = item { appsToPreheat.append(app) }
             }
         }
-        IconCache.preheatAsync(urls: urls)
+        IconCache.preheatAsync(apps: appsToPreheat)
     }
 
     func beginDrag(_ item: LaunchpadItem, pageFrame: CGSize) {
@@ -576,7 +691,8 @@ final class LaunchpadStore {
                     return .folder(folder)
                 }
                 let path = token.hasPrefix("app:") ? String(token.dropFirst("app:".count)) : token
-                return remaining.removeValue(forKey: path).map(LaunchpadItem.app)
+                let app = remaining.removeValue(forKey: path)
+                return hiddenAppPaths.contains(path) ? nil : app.map(LaunchpadItem.app)
             }
         }
         fitPagesToCapacity()
@@ -584,7 +700,8 @@ final class LaunchpadStore {
 
         // New apps join the last page; earlier pages keep their deliberately unused space.
         let extras = savedFolders.filter { !usedFolderIDs.contains($0.id) }.map(LaunchpadItem.folder)
-            + remaining.values.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            + remaining.values.filter { !hiddenAppPaths.contains($0.url.path) }
+                .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
                 .map(LaunchpadItem.app)
         for item in extras {
             let last = itemPages.count - 1
@@ -644,7 +761,7 @@ final class LaunchpadStore {
         guard let position = position(of: "folder:\(folderID.uuidString)"),
               var folder = itemPages[position.page][position.index].folderValue else { return }
         folder.appPaths.removeAll { $0 == path }
-        if folder.appPaths.count <= 1 {
+        if folder.appPaths.count <= 1 && !folder.appPaths.contains(where: { hiddenAppPaths.contains($0) }) {
             itemPages[position.page].remove(at: position.index)
             if let last = folder.appPaths.first, let app = appCatalog[last] {
                 itemPages[position.page].insert(.app(app), at: position.index)

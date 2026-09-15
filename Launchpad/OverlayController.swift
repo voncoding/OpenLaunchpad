@@ -21,6 +21,8 @@ final class OverlayController {
     private var isOpeningApplication = false
     private var previousPresentationOptions: NSApplication.PresentationOptions?
     private var overlayPresentationOptions: NSApplication.PresentationOptions?
+    private var wallpaperTask: Task<Void, Never>?
+    private var pendingWallpaperScreen: NSScreen?
 
     private init() {}
 
@@ -54,7 +56,7 @@ final class OverlayController {
             let dockHeight = max(screen.visibleFrame.minY - screen.frame.minY, 0)
             let menuHeight = max(screen.frame.maxY - screen.visibleFrame.maxY, 0)
             store.updateLayout(for: frame.size, topInset: menuHeight + 8, bottomInset: dockHeight + 36)
-            store.wallpaper = WallpaperLoader.blurredWallpaper(for: screen)
+            refreshWallpaper(for: screen)
         } else {
             store.updateLayout(for: frame.size, topInset: 28, bottomInset: 72)
             store.wallpaper = nil
@@ -120,6 +122,23 @@ final class OverlayController {
                 self.window?.orderOut(nil)
                 self.window?.alphaValue = 1
             }
+        }
+    }
+
+    private func refreshWallpaper(for screen: NSScreen) {
+        pendingWallpaperScreen = screen
+        guard wallpaperTask == nil else { return }
+        // Coalesce quick reopen requests instead of starting multiple blocked reads.
+        wallpaperTask = Task { [weak self] in
+            guard let self else { return }
+            while let requestedScreen = self.pendingWallpaperScreen {
+                self.pendingWallpaperScreen = nil
+                let image = await WallpaperLoader.blurredWallpaper(for: requestedScreen)
+                if self.pendingWallpaperScreen == nil, self.window?.screen === requestedScreen {
+                    self.store.wallpaper = image
+                }
+            }
+            self.wallpaperTask = nil
         }
     }
 

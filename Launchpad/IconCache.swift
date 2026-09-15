@@ -1,126 +1,180 @@
 import AppKit
 import CryptoKit
 import Foundation
+import ImageIO
 
-enum IconCache: Sendable {
-    nonisolated(unsafe) private static let memory: NSCache<NSString, NSImage> = {
-        let cache = NSCache<NSString, NSImage>()
-        cache.countLimit = 500
-        return cache
-    }()
+/// The revision comes from the background catalog scan. Constructing this key never
+/// queries the filesystem, so a SwiftUI body can safely use it on every render.
+nonisolated struct IconRequestID: Hashable, Sendable {
+    let path: String
+    let revision: String
 
-    nonisolated private static let diskQueue = DispatchQueue(label: "a.Launchpad.IconCache", qos: .utility)
-    nonisolated(unsafe) private static let fileManager = FileManager.default
-
-    nonisolated private static var diskDirectory: URL? {
-        guard let base = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
-        let dir = base.appendingPathComponent("OpenLaunchpad/Icons", isDirectory: true)
-        if !fileManager.fileExists(atPath: dir.path) {
-            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-        }
-        return dir
+    init(app: InstalledApp) {
+        path = app.url.path
+        revision = app.iconRevision
     }
 
-    /// Synchronously return a displayable icon (memory → disk → rasterize).
-    nonisolated static func image(for url: URL) -> NSImage {
-        let key = cacheKey(for: url)
-        if let cached = memory.object(forKey: key as NSString) {
-            return cached
-        }
+    var memoryKey: NSString { "\(path.utf8.count):\(path)\(revision)" as NSString }
+}
 
-        if let diskImage = loadFromDisk(key: key) {
-            memory.setObject(diskImage, forKey: key as NSString)
-            return diskImage
-        }
+nonisolated enum IconCache {
+    private static let pipeline = IconLoadingPipeline(loader: loadImage)
 
-        let source = NSWorkspace.shared.icon(forFile: url.path)
-        let raster = rasterize(source)
-        memory.setObject(raster, forKey: key as NSString)
-        diskQueue.async {
-            saveToDisk(raster, key: key)
-        }
-        return raster
+    static func cachedImage(for app: InstalledApp) -> NSImage? {
+        pipeline.cachedImage(for: app)
     }
 
-    /// Warm a small set of icons off the main thread (current page / visible folders).
-    nonisolated static func preheatAsync(urls: [URL]) {
-        guard !urls.isEmpty else { return }
-        let unique = Array(Set(urls))
-        diskQueue.async {
-            for url in unique {
-                _ = image(for: url)
+    static func image(for app: InstalledApp) async -> NSImage {
+        await pipeline.image(for: app)
+    }
+
+    static func preheatAsync(apps: [InstalledApp]) {
+        pipeline.preheat(apps: apps)
+    }
+
+    // Everything below runs only on the pipeline's bounded worker queue, including
+    // hashing, cache-directory creation, PNG decoding and workspace icon lookup.
+    private static func loadImage(for app: InstalledApp) -> NSImage {
+        let request = IconRequestID(app: app)
+        let raw = "v2|\(request.memoryKey)|\(Int(LaunchpadMetrics.iconPixelSize))"
+        let digest = SHA256.hash(data: Data(raw.utf8))
+        let key = digest.map { String(format: "%02x", $0) }.joined()
+        let file = diskURL(for: key)
+        if let file,
+           let data = try? Data(contentsOf: file),
+           let source = CGImageSourceCreateWithData(data as CFData, nil),
+           let image = CGImageSourceCreateImageAtIndex(source, 0, [
+               kCGImageSourceShouldCacheImmediately: true,
+               kCGImageSourceShouldCache: true,
+           ] as CFDictionary) {
+            return NSImage(cgImage: image, size: iconSize)
+        }
+
+        let image = rasterize(NSWorkspace.shared.icon(forFile: app.url.path))
+        if let file,
+           let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            let data = NSMutableData()
+            if let destination = CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil) {
+                CGImageDestinationAddImage(destination, cgImage, nil)
+                if CGImageDestinationFinalize(destination) {
+                    try? (data as Data).write(to: file, options: .atomic)
+                }
             }
         }
-    }
-
-    nonisolated static func preheat(urls: [URL]) {
-        preheatAsync(urls: urls)
-    }
-
-    nonisolated private static func cacheKey(for url: URL) -> String {
-        let path = url.standardizedFileURL.path
-        let mtime = (try? fileManager.attributesOfItem(atPath: path)[.modificationDate] as? Date)?
-            .timeIntervalSince1970 ?? 0
-        let raw = "\(path)|\(Int(mtime))|\(Int(LaunchpadMetrics.iconPixelSize))"
-        let digest = SHA256.hash(data: Data(raw.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
-    }
-
-    nonisolated private static func diskURL(for key: String) -> URL? {
-        diskDirectory?.appendingPathComponent("\(key).png", isDirectory: false)
-    }
-
-    nonisolated private static func loadFromDisk(key: String) -> NSImage? {
-        guard let file = diskURL(for: key),
-              fileManager.fileExists(atPath: file.path),
-              let data = try? Data(contentsOf: file),
-              let image = NSImage(data: data) else { return nil }
-        image.size = NSSize(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.iconSize)
         return image
     }
 
-    nonisolated private static func saveToDisk(_ image: NSImage, key: String) {
-        guard let file = diskURL(for: key),
-              let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff),
-              let png = rep.representation(using: .png, properties: [:]) else { return }
-        try? png.write(to: file, options: .atomic)
+    private static var iconSize: NSSize {
+        NSSize(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.iconSize)
     }
 
-    private nonisolated static func rasterize(_ source: NSImage) -> NSImage {
-        let pixel = Int(LaunchpadMetrics.iconPixelSize)
-        let size = NSSize(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.iconSize)
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+    private static func diskURL(for key: String) -> URL? {
+        let manager = FileManager.default
+        guard let base = manager.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
+        let directory = base.appendingPathComponent("OpenLaunchpad/Icons", isDirectory: true)
+        do {
+            try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+            return directory.appendingPathComponent("\(key).png", isDirectory: false)
+        } catch {
+            return nil
+        }
+    }
 
+    private static func rasterize(_ source: NSImage) -> NSImage {
+        let pixel = Int(LaunchpadMetrics.iconPixelSize)
+        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
         guard let context = CGContext(
-            data: nil,
-            width: pixel,
-            height: pixel,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: bitmapInfo
+            data: nil, width: pixel, height: pixel, bitsPerComponent: 8,
+            bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: bitmapInfo
         ) else {
-            source.size = size
+            source.size = iconSize
             return source
         }
 
         context.interpolationQuality = .high
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-        source.draw(
-            in: CGRect(x: 0, y: 0, width: pixel, height: pixel),
-            from: .zero,
-            operation: .copy,
-            fraction: 1
-        )
+        source.draw(in: CGRect(x: 0, y: 0, width: pixel, height: pixel), from: .zero, operation: .copy, fraction: 1)
         NSGraphicsContext.restoreGraphicsState()
-
         guard let cgImage = context.makeImage() else {
-            source.size = size
+            source.size = iconSize
             return source
         }
-        return NSImage(cgImage: cgImage, size: size)
+        return NSImage(cgImage: cgImage, size: iconSize)
+    }
+}
+
+/// A single request is shared by previews, full-size icons and preheating. Only the
+/// worker queue invokes the loader; the lock protects request bookkeeping, never I/O.
+nonisolated final class IconLoadingPipeline: @unchecked Sendable {
+    typealias Loader = @Sendable (InstalledApp) -> NSImage
+
+    private struct Pending {
+        var waiters: [CheckedContinuation<NSImage, Never>]
+        let operation: BlockOperation
+    }
+
+    private let memory = NSCache<NSString, NSImage>()
+    private let lock = NSLock()
+    private let queue: OperationQueue
+    private let loader: Loader
+    private var pending: [IconRequestID: Pending] = [:]
+
+    init(maxConcurrentLoads: Int = 2, loader: @escaping Loader) {
+        self.loader = loader
+        queue = OperationQueue()
+        queue.name = "a.Launchpad.IconCache"
+        queue.qualityOfService = .userInitiated
+        queue.maxConcurrentOperationCount = max(1, maxConcurrentLoads)
+        memory.countLimit = 500
+        memory.totalCostLimit = 64 * 1024 * 1024
+    }
+
+    func cachedImage(for app: InstalledApp) -> NSImage? {
+        memory.object(forKey: IconRequestID(app: app).memoryKey)
+    }
+
+    func image(for app: InstalledApp) async -> NSImage {
+        await withCheckedContinuation { continuation in
+            request(app, waiter: continuation)
+        }
+    }
+
+    func preheat(apps: [InstalledApp]) {
+        for app in apps { request(app, waiter: nil) }
+    }
+
+    private func request(_ app: InstalledApp, waiter: CheckedContinuation<NSImage, Never>?) {
+        let id = IconRequestID(app: app)
+        lock.lock()
+        if let image = memory.object(forKey: id.memoryKey) {
+            lock.unlock()
+            waiter?.resume(returning: image)
+            return
+        }
+        if var existing = pending[id] {
+            if let waiter {
+                existing.waiters.append(waiter)
+                existing.operation.queuePriority = .normal
+                pending[id] = existing
+            }
+            lock.unlock()
+            return
+        }
+        let operation = BlockOperation { [self] in
+            autoreleasepool {
+                let image = loader(app)
+                lock.lock()
+                let cost = Int(LaunchpadMetrics.iconPixelSize * LaunchpadMetrics.iconPixelSize) * 4
+                memory.setObject(image, forKey: id.memoryKey, cost: cost)
+                let waiters = pending.removeValue(forKey: id)?.waiters ?? []
+                lock.unlock()
+                for waiter in waiters { waiter.resume(returning: image) }
+            }
+        }
+        operation.queuePriority = waiter == nil ? .low : .normal
+        pending[id] = Pending(waiters: waiter.map { [$0] } ?? [], operation: operation)
+        lock.unlock()
+        queue.addOperation(operation)
     }
 }

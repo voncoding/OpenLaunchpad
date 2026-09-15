@@ -3,7 +3,7 @@ import Foundation
 /// NSWorkspace can return DefaultDesktop.heic for Photos wallpapers on Tahoe.
 /// Resolve the selected asset through the wallpaper service's own copied image.
 /// These on-disk formats are optional: never select an arbitrary cached photo.
-enum WallpaperSourceResolver {
+nonisolated enum WallpaperSourceResolver {
     static func wallpaperURL(workspaceURL: URL?, displayID: String?, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL? {
         let index = readPlist(home.appendingPathComponent("Library/Application Support/com.apple.wallpaper/Store/Index.plist"))
         let preferencePaths = [

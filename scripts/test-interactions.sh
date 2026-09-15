@@ -7,15 +7,32 @@ trap 'rm -rf "$test_dir"' EXIT
 
 mkdir -p "$test_dir/home" "$test_dir/module-cache"
 developer_dir="${DEVELOPER_DIR:-$(xcode-select -p)}"
-if [[ ! -d "$developer_dir/Platforms/MacOSX.platform" && -d /Applications/Xcode.app/Contents/Developer ]]; then
+if [[ ! -d "$developer_dir/Platforms/MacOSX.platform" && ! -d "$developer_dir/SDKs" && -d /Applications/Xcode.app/Contents/Developer ]]; then
     developer_dir=/Applications/Xcode.app/Contents/Developer
 fi
-if [[ ! -d "$developer_dir/Platforms/MacOSX.platform" ]]; then
-    echo "Full Xcode is required. Set DEVELOPER_DIR to its Contents/Developer directory." >&2
+if ! DEVELOPER_DIR="$developer_dir" xcrun swiftc --version > "$test_dir/swift-version" 2>&1; then
+    if [[ -d /Library/Developer/CommandLineTools && "$developer_dir" != /Library/Developer/CommandLineTools ]]; then
+        developer_dir=/Library/Developer/CommandLineTools
+    fi
+fi
+if ! DEVELOPER_DIR="$developer_dir" xcrun swiftc --version > "$test_dir/swift-version" 2>&1; then
+    cat "$test_dir/swift-version" >&2
+    echo "A working Xcode or Command Line Tools Swift toolchain is required." >&2
     exit 1
 fi
-plugin_dir="$developer_dir/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins"
-plugin_server="$developer_dir/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-plugin-server"
+if [[ -d "$developer_dir/Platforms/MacOSX.platform" ]]; then
+    plugin_dir="$developer_dir/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins"
+    plugin_server="$developer_dir/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-plugin-server"
+else
+    plugin_dir="$developer_dir/usr/lib/swift/host/plugins"
+    plugin_server="$developer_dir/usr/bin/swift-plugin-server"
+fi
+sdk_path="${SDKROOT:-$(DEVELOPER_DIR="$developer_dir" xcrun --show-sdk-path)}"
+# CLT's macOS 27 SDK requires SwiftUI macros only shipped with full Xcode.
+# The app targets macOS 26; use its installed SDK when running with CLT alone.
+if [[ ! -f "$plugin_dir/libSwiftUIMacros.dylib" && -z "${SDKROOT:-}" && -d "$developer_dir/SDKs/MacOSX26.5.sdk" ]]; then
+    sdk_path="$developer_dir/SDKs/MacOSX26.5.sdk"
+fi
 sources=()
 for source in "$project_dir"/Launchpad/*.swift; do
     [[ "$(basename "$source")" == "LaunchpadApp.swift" ]] && continue
@@ -25,6 +42,7 @@ done
 # Compile the production implementation with the app target's concurrency defaults.
 # The scrollbar regression renders the real folder offscreen; no app is launched.
 DEVELOPER_DIR="$developer_dir" xcrun swiftc \
+    -sdk "$sdk_path" \
     -parse-as-library \
     -swift-version 5 \
     -default-isolation MainActor \

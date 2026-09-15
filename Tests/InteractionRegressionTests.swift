@@ -60,6 +60,22 @@ struct InteractionRegressionTests {
 
     static func main() async {
         let tests: [(String, @MainActor () async throws -> Void)] = [
+            ("icon memory hits and concurrent requests share one background load", IconLoadingRegression.memoryAndCoalescing),
+            ("icon revisions refresh with bounded loading concurrency", IconLoadingRegression.revisionAndConcurrency),
+            ("slow icon decoding does not block rendering", IconLoadingRegression.slowLoadDoesNotBlockRendering),
+            ("application directory events coalesce installs and detect updates and removals", AppDirectoryMonitorRegression.bundleChanges),
+            ("missing application directories are watched without unrelated file events", AppDirectoryMonitorRegression.missingRootAndFiltering),
+            ("directory monitors replace old subscriptions and stop cleanly", AppDirectoryMonitorRegression.restartAndStop),
+            ("reopening reuses the app catalog until expiry or explicit refresh", CatalogRefreshRegression.reuseAndExpiry),
+            ("directory changes during scanning coalesce into one fresh scan", CatalogRefreshRegression.changesDuringScan),
+            ("background catalog refresh respects an open folder", CatalogRefreshRegression.changesDuringFolder),
+            ("first reopen applies deferred folder catalog changes without rescanning", CatalogRefreshRegression.deferredChangesOnFirstReopen),
+            ("background scans version updated icons without invalidating unchanged ones", CatalogRefreshRegression.iconRevisionChanges),
+            ("custom grid persists without backfilling pages", SettingsRegression.gridPersistence),
+            ("custom grid fits each screen and remembers preferences", SettingsRegression.screenLimits),
+            ("hidden apps survive scans and restore on the last page", SettingsRegression.visibilityPersistence),
+            ("hidden folder apps retain membership during extraction", SettingsRegression.folderVisibility),
+            ("hiding all apps keeps valid pages and remains reversible", SettingsRegression.hideAll),
             ("quick drop reorders without creating a folder", quickDrop),
             ("hover over icon center merges only after delay", deliberateMerge),
             ("hover over cell gap keeps reorder intent", gapDoesNotMerge),

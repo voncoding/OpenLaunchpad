@@ -3,11 +3,16 @@ import Carbon
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let appDirectoryMonitor = AppDirectoryMonitor()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         let launchEvent = NSAppleEventManager.shared().currentAppleEvent
         let launchedAtLogin = launchEvent?.eventID == kAEOpenApplication
             && launchEvent?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
         NSApp.setActivationPolicy(.regular)
+        appDirectoryMonitor.start(roots: AppScanner.applicationRoots) {
+            OverlayController.shared.store.invalidateCatalog()
+        }
         OverlayController.shared.prepare()
         HotkeyMonitor.shared.start()
 
@@ -47,6 +52,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        appDirectoryMonitor.stop()
     }
 }
 

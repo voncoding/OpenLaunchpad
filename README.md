@@ -17,9 +17,9 @@ It restores a familiar full-screen app launcher with search, paging, and drag-to
 
 **OpenLaunchpad** 是面向 **macOS Tahoe（macOS 26）** 的原生启动台替代应用：全屏应用网格、拼音搜索、翻页与拖拽排序。
 
-[Download latest release](https://github.com/voncoding/OpenLaunchpad/releases/latest) · [中文说明](#安装-install)
+[官网 Website](https://appledev.app/) · [Download latest release](https://github.com/voncoding/OpenLaunchpad/releases/latest) · [中文说明](#install-安装)
 
-本次更新 **v1.1.0**：文件夹、独立分页及翻页边缘修复。详见 [更新日志 / Changelog](CHANGELOG.md)。
+本次更新 **v1.1.0**：原生风格文件夹、独立分页、自定义网格、应用隐藏与图标加载性能优化。详见 [更新日志 / Changelog](CHANGELOG.md)。
 
 ---
 
@@ -45,7 +45,10 @@ It restores a familiar full-screen app launcher with search, paging, and drag-to
 | 触控板两指翻页；空白处鼠标拖动翻页 | Trackpad two-finger paging; drag empty space with the mouse |
 | 拖拽图标重排，顺序会记住 | Drag icons to reorder; order is persisted |
 | 记住上次停留的页 | Remembers the last page you were on |
-| 快捷键 ⌥⌘L，菜单栏常驻 | Hotkey ⌥⌘L; lives in the menu bar |
+| 快捷键 ⌥⌘L，菜单栏图标可隐藏 | Hotkey ⌥⌘L; optional menu bar icon |
+| 文件夹、独立分页、自定义网格 | Folders, independent pages, and configurable grid dimensions |
+| 隐藏或恢复应用，保留布局与设置 | Hide and restore apps while preserving layout and preferences |
+| 后台刷新列表、异步加载图标 | Background catalog refresh and asynchronous icon loading |
 | 支持登录时启动 | Optional launch at login |
 
 ---
@@ -53,7 +56,7 @@ It restores a familiar full-screen app launcher with search, paging, and drag-to
 ## Requirements 系统要求
 
 - macOS 26.0+（Tahoe）
-- Apple Silicon or Intel
+- Apple Silicon or Intel（同一个通用安装包 / universal binary）
 
 ---
 
@@ -77,6 +80,7 @@ xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
 
 - **Open**：⌥⌘L, menu bar grid icon, or Dock icon  
 - **Close**：Esc, or click empty space  
+- **Menu bar icon**：Settings → 显示菜单栏图标; after hiding it, open the launcher from the Dock or with ⌥⌘L, then press ⌘, to reopen Settings
 - **Search**：click the search field first (no auto-focus)  
 - **Page**：trackpad swipe, or drag on gaps between icons  
 - **Reorder**：drag an icon to a new position and release; hold near a page edge to move between pages
@@ -89,6 +93,12 @@ xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
 每页独立保存：移走图标、合并文件夹或卸载应用后，当前页底部可以留空，不会从下一页自动补齐；重新打开后仍保留分页。新安装的应用添加到最后一页。
 
 文件夹采用接近原生启动台的宽幅浅灰面板，最多显示四行，更多应用可滚动查看，滚动条隐藏。仅展开文件夹时，程序坞和菜单栏会自动隐藏；回到主网格后恢复。
+
+打开启动台后按 **⌘,** 进入设置，可关闭菜单栏图标。在“网格”中关闭“自动适配屏幕”即可调整行列数；上限随屏幕大小变化。减少容量会拆分页，增加容量不会把下一页的应用补到前页。
+
+“应用显示 → 管理应用…”支持按名称、拼音或首字母查找应用，关闭开关即可隐藏，切换到“已隐藏”可随时恢复。隐藏同时作用于主网格、文件夹预览和搜索，不会卸载应用。恢复后，文件夹内应用仍在原文件夹，独立应用追加到最后一页；隐藏偏好在重启和重新扫描后保留。
+
+反复打开启动台会复用已有应用列表；安装、卸载和更新应用时自动在后台刷新，并在五分钟后的再次打开时兜底检查。图标采用异步加载与请求合并，界面只直接查询内存缓存，当前页及相邻页优先加载。
 
 每次打开时重新读取当前壁纸，并做模糊、压暗处理。支持读取“照片”来源壁纸对应的系统缓存原图，避免错误显示系统默认壁纸。
 
@@ -108,7 +118,7 @@ SwiftUI + AppKit hybrid: borderless overlay window, AppKit-driven paging, SwiftU
 No. It is an independent open-source alternative for macOS Tahoe.
 
 **Can I use a custom domain?**  
-The GitHub repository itself cannot bind a domain. You can host a simple landing page with **GitHub Pages** (e.g. `docs/` or `gh-pages`) and point your domain there, linking to Releases for downloads.
+The [product website](https://appledev.app/) runs on GitHub Pages. See the [website maintenance and domain guide](https://github.com/voncoding/OpenLaunchpad/blob/codex/website/WEBSITE.md) for details.
 
 **Gatekeeper warning?**  
 Unsigned / ad-hoc signed builds may need “Open Anyway” in Privacy & Security.

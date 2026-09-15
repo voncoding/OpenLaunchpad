@@ -37,7 +37,7 @@ struct LaunchpadView: View {
                         Spacer()
                     } else if store.displayItems.isEmpty {
                         Spacer()
-                        Text(store.query.isEmpty ? "没有找到应用程序" : "未找到“\(store.query)”")
+                        Text(store.query.isEmpty ? (store.hiddenAppCount > 0 ? "应用已隐藏，可按 ⌘, 在设置中恢复" : "没有找到应用程序") : "未找到“\(store.query)”")
                             .font(.title3)
                             .foregroundStyle(.white.opacity(0.85))
                             .shadow(color: .black.opacity(0.45), radius: 8, y: 2)
@@ -370,10 +370,7 @@ struct FolderIconCell: View {
                     spacing: 4
                 ) {
                     ForEach(preview, id: \.id) { app in
-                        Image(nsImage: IconCache.image(for: app.url))
-                            .resizable()
-                            .interpolation(.medium)
-                            .aspectRatio(contentMode: .fit)
+                        AppIconImage(app: app)
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                 }
@@ -452,10 +449,7 @@ struct AppIconCell: View {
 
     var body: some View {
         VStack(spacing: isInFolder ? 6 : 8) {
-            Image(nsImage: IconCache.image(for: app.url))
-                .resizable()
-                .interpolation(.medium)
-                .aspectRatio(contentMode: .fit)
+            AppIconImage(app: app)
                 .frame(width: LaunchpadMetrics.iconSize, height: LaunchpadMetrics.iconSize)
                 .shadow(
                     color: .black.opacity(isFloating ? 0.35 : (isInFolder ? 0.12 : 0.32)),
@@ -584,6 +578,13 @@ struct FolderOverlay: View {
                         // Also suppress legacy scrollers when macOS is set to Always.
                         .scrollIndicators(.never)
                         .frame(width: panelWidth, height: max(1, panelHeight - vPad * 2))
+                        .overlay {
+                            if apps.isEmpty {
+                                Text("此文件夹中的应用已隐藏，可在设置中恢复。")
+                                    .foregroundStyle(.white.opacity(0.85))
+                                    .padding()
+                            }
+                        }
                         .padding(.vertical, vPad)
                         .onChange(of: store.selectedID) { _, selectedID in
                             guard let selectedID else { return }
@@ -725,7 +726,22 @@ struct PageIndicator: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ForEach(0..<max(count, 1), id: \.self) { index in
+            if count > 9 {
+                Button { onSelect(current - 1) } label: {
+                    Image(systemName: "chevron.left").frame(width: 24, height: 18)
+                }
+                .disabled(current <= 0)
+                .accessibilityLabel("上一页")
+                Text("\(current + 1) / \(count)")
+                    .monospacedDigit()
+                    .accessibilityLabel("第 \(current + 1) 页，共 \(count) 页")
+                Button { onSelect(current + 1) } label: {
+                    Image(systemName: "chevron.right").frame(width: 24, height: 18)
+                }
+                .disabled(current >= count - 1)
+                .accessibilityLabel("下一页")
+            } else {
+              ForEach(0..<max(count, 1), id: \.self) { index in
                 Button {
                     onSelect(index)
                 } label: {
@@ -739,15 +755,20 @@ struct PageIndicator: View {
                 .accessibilityLabel("第 \(index + 1) 页，共 \(count) 页")
                 .accessibilityValue(index == current ? "当前页" : "")
                 .help("第 \(index + 1) 页")
+              }
             }
         }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .glassEffect(.regular, in: .capsule)
     }
 }
 
+#if DEBUG
 #Preview {
     LaunchpadView(store: LaunchpadStore())
         .frame(width: 1200, height: 800)
 }
+#endif

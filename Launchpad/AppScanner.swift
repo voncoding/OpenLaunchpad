@@ -7,6 +7,8 @@ nonisolated struct InstalledApp: Identifiable, Hashable, Sendable {
     let latinName: String
     let initials: String
     let bundleIdentifier: String?
+    /// Calculated during the background scan, never while rendering an icon.
+    var iconRevision: String = ""
 
     var id: URL { url }
 
@@ -31,15 +33,17 @@ nonisolated enum AppScanner: Sendable {
         "a.Launchpad",
     ]
 
-    nonisolated static func scan() -> [InstalledApp] {
-        let fileManager = FileManager.default
-        let home = fileManager.homeDirectoryForCurrentUser
-        let roots = [
+    nonisolated static var applicationRoots: [URL] {
+        [
             URL(fileURLWithPath: "/Applications"),
             URL(fileURLWithPath: "/System/Applications"),
             URL(fileURLWithPath: "/System/Cryptexes/App/System/Applications"),
-            home.appendingPathComponent("Applications"),
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications"),
         ]
+    }
+
+    nonisolated static func scan(roots: [URL] = applicationRoots) -> [InstalledApp] {
+        let fileManager = FileManager.default
 
         var unique = [String: InstalledApp]()
         var unnamed = [InstalledApp]()
@@ -121,8 +125,23 @@ nonisolated enum AppScanner: Sendable {
             name: trimmed,
             latinName: latin,
             initials: initials(from: latin),
-            bundleIdentifier: bundle?.bundleIdentifier
+            bundleIdentifier: bundle?.bundleIdentifier,
+            iconRevision: iconRevision(at: url, bundle: bundle)
         )
+    }
+
+    private nonisolated static func iconRevision(at url: URL, bundle: Bundle?) -> String {
+        let resources = url.appendingPathComponent("Contents/Resources")
+        var sources = [url, url.appendingPathComponent("Contents/Info.plist"), resources,
+                       resources.appendingPathComponent("Assets.car")]
+        if let icon = bundle?.object(forInfoDictionaryKey: "CFBundleIconFile") as? String {
+            let iconURL = resources.appendingPathComponent(icon)
+            sources.append(iconURL.pathExtension.isEmpty ? iconURL.appendingPathExtension("icns") : iconURL)
+        }
+        return sources.map { source in
+            let values = try? source.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+            return "\(values?.contentModificationDate?.timeIntervalSince1970 ?? 0):\(values?.fileSize ?? 0)"
+        }.joined(separator: "|")
     }
 
     private nonisolated static func latinize(_ string: String) -> String {
