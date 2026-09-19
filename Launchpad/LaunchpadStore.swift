@@ -44,6 +44,7 @@ final class LaunchpadStore {
     @ObservationIgnored private var lastLayoutSize: CGSize?
     var isLoading = true
     var wallpaper: NSImage?
+    var wallpaperStatus: WallpaperLoader.Status = .loading
     var topInset: CGFloat = 28
     var bottomInset: CGFloat = 80
     var horizontalInset: CGFloat = 118

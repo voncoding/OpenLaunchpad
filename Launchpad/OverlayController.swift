@@ -60,6 +60,7 @@ final class OverlayController {
         } else {
             store.updateLayout(for: frame.size, topInset: 28, bottomInset: 72)
             store.wallpaper = nil
+            store.wallpaperStatus = .unavailable
         }
 
         if window == nil {
@@ -125,17 +126,31 @@ final class OverlayController {
         }
     }
 
+    func retryWallpaper() {
+        guard let screen = (isVisible ? window?.screen : nil) ?? NSScreen.main else {
+            store.wallpaper = nil
+            store.wallpaperStatus = .unavailable
+            return
+        }
+        refreshWallpaper(for: screen)
+    }
+
     private func refreshWallpaper(for screen: NSScreen) {
         pendingWallpaperScreen = screen
+        store.wallpaperStatus = .loading
         guard wallpaperTask == nil else { return }
         // Coalesce quick reopen requests instead of starting multiple blocked reads.
         wallpaperTask = Task { [weak self] in
             guard let self else { return }
             while let requestedScreen = self.pendingWallpaperScreen {
                 self.pendingWallpaperScreen = nil
-                let image = await WallpaperLoader.blurredWallpaper(for: requestedScreen)
-                if self.pendingWallpaperScreen == nil, self.window?.screen === requestedScreen {
-                    self.store.wallpaper = image
+                let result = await WallpaperLoader.blurredWallpaper(for: requestedScreen)
+                let requestedID = requestedScreen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+                let currentID = self.window?.screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+                if self.pendingWallpaperScreen == nil,
+                   !self.isVisible || (requestedID != nil && requestedID == currentID) {
+                    self.store.wallpaper = result.image
+                    self.store.wallpaperStatus = result.status
                 }
             }
             self.wallpaperTask = nil

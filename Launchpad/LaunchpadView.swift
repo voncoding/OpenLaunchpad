@@ -29,6 +29,17 @@ struct LaunchpadView: View {
                         .padding(.top, store.topInset + 16)
                         .padding(.bottom, 16)
                         .zIndex(2)
+                        .overlay(alignment: .bottom) {
+                            if store.wallpaperStatus.needsAttention {
+                                SettingsLink {
+                                    Label("壁纸未能读取 · 打开设置", systemImage: "photo.badge.exclamationmark")
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.white.opacity(0.85))
+                                .offset(y: 2)
+                            }
+                        }
 
                     if store.isLoading && store.appsIsEmpty {
                         Spacer()
@@ -101,7 +112,8 @@ struct LaunchpadView: View {
                     .clipped()
             }
         } else {
-            Color.black
+            LinearGradient(colors: [Color(white: 0.16), Color(white: 0.09)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 }

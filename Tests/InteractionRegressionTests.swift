@@ -111,6 +111,11 @@ struct InteractionRegressionTests {
             ("wallpaper selection is reread after settings change", WallpaperSourceRegression.changingSelection),
             ("wallpaper respects the requested display's desktop setting", WallpaperSourceRegression.displaySelection),
             ("wallpaper never substitutes an arbitrary photo or directory entry", WallpaperSourceRegression.safeFallback),
+            ("public wallpapers never read protected photo preferences", WallpaperSourceRegression.publicWallpaperSkipsPrivateReads),
+            ("selected wallpapers read only necessary cache records", WallpaperSourceRegression.selectedWallpaperReadsLazily),
+            ("wallpaper permission errors are distinguished from missing files", WallpaperSourceRegression.deniedPhotoAccess),
+            ("missing or malformed photo caches fail without unrelated fallback", WallpaperSourceRegression.unavailablePhotoIsNotPermissionFailure),
+            ("denied wallpaper selection never displays the system default", WallpaperSourceRegression.deniedSelectionDoesNotUseDefault),
         ]
         var failures = 0
         for (name, test) in tests {

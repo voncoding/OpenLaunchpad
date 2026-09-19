@@ -49,6 +49,28 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("壁纸") {
+                Text(store.wallpaperStatus.description)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("重新读取壁纸") { OverlayController.shared.retryWallpaper() }
+                        .disabled(store.wallpaperStatus == .loading)
+                    if store.wallpaperStatus == .accessDenied {
+                        Button("打开隐私设置…") {
+                            guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") else { return }
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                }
+                if store.wallpaperStatus == .accessDenied {
+                    Text("完整磁盘访问的范围大于壁纸目录。也可以在系统壁纸设置中改用本地图片文件，然后重新读取。")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("在访达中显示启动台") {
+                        NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+                    }
+                }
+            }
+
             Section("应用显示") {
                 HStack {
                     Text("已显示 \(store.appCatalog.count - store.hiddenAppCount) 个 · 已隐藏 \(store.hiddenAppCount) 个")
@@ -91,6 +113,7 @@ struct SettingsView: View {
         .onAppear {
             loginStatus = SMAppService.mainApp.status
             OverlayController.shared.hide()
+            OverlayController.shared.retryWallpaper()
             if let screen = NSScreen.main {
                 let dockHeight = max(screen.visibleFrame.minY - screen.frame.minY, 0)
                 let menuHeight = max(screen.frame.maxY - screen.visibleFrame.maxY, 0)

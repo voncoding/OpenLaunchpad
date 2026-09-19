@@ -7,7 +7,7 @@ Run from the repository root on macOS with Xcode or Command Line Tools installed
 ```
 
 The script compiles the production Swift sources with the project's main-actor
-isolation and concurrency settings, then runs 51 checks for drag intent, folder
+isolation and concurrency settings, then runs 56 checks for drag intent, folder
 boundaries, keyboard navigation, folder closure and selection restoration, page
 restoration, catalog refresh races, and persistent page boundaries. The scrollbar check hosts the real folder
 offscreen with the system scroll-bar preference set to Always for the test process;
@@ -16,7 +16,9 @@ The pager check hosts the real grid offscreen and verifies full-viewport clippin
 icon hit targets, and page snapping when a swipe ends or is cancelled outside it.
 Wallpaper checks use synthetic wallpaper-service plists and temporary files to
 verify Photos asset matching, settings refresh, display precedence, and safe
-handling of missing assets, folders, and shuffle configurations.
+handling of missing assets, folders, and shuffle configurations. They also verify
+lazy access to protected photo preferences, distinguish permission failures from
+missing files, and prevent a denied photo selection from becoming a default image.
 It does not require an Xcode test target or display the launcher on screen.
 
 Catalog checks inject a scan operation and monotonic clock to verify that repeated

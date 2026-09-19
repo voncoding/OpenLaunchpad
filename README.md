@@ -19,7 +19,7 @@ It restores a familiar full-screen app launcher with search, paging, and drag-to
 
 [官网 Website](https://appledev.app/) · [Download latest release](https://github.com/voncoding/OpenLaunchpad/releases/latest) · [中文说明](#install-安装)
 
-本次更新 **v1.1.0**：原生风格文件夹、独立分页、自定义网格、应用隐藏与图标加载性能优化。详见 [更新日志 / Changelog](CHANGELOG.md)。
+本次更新 **v1.1.1**：改进 macOS 27 壁纸读取失败的诊断、重试与权限设置指引，减少不必要的壁纸缓存访问。详见 [更新日志 / Changelog](CHANGELOG.md)。
 
 ---
 
@@ -101,6 +101,10 @@ xcodebuild -project Launchpad.xcodeproj -scheme Launchpad \
 反复打开启动台会复用已有应用列表；安装、卸载和更新应用时自动在后台刷新，并在五分钟后的再次打开时兜底检查。图标采用异步加载与请求合并，界面只直接查询内存缓存，当前页及相邻页优先加载。
 
 每次打开时重新读取当前壁纸，并做模糊、压暗处理。支持读取“照片”来源壁纸对应的系统缓存原图，避免错误显示系统默认壁纸。
+
+**macOS 27 壁纸不显示：** 打开启动台设置查看“壁纸”状态。若提示权限不足，可在“系统设置 → 隐私与安全性 → 完整磁盘访问”中添加当前安装的 **启动台 / OpenLaunchpad**，再退出并重新打开。此权限覆盖范围大于壁纸目录；也可以在系统壁纸设置中改用本地图片文件，然后点“重新读取壁纸”。安装包使用临时签名，更新替换后可能需要重新添加授权。
+
+**Wallpaper access on macOS 27:** Some Photos wallpapers use protected system caches. Settings now explains a failed read and offers retry and privacy settings. Following these wallpapers may require granting the installed OpenLaunchpad app Full Disk Access, then quitting and reopening it. This permission covers more than wallpaper files; using a local image in macOS Wallpaper settings is an alternative. Ad-hoc signed updates may require granting access again.
 
 开发时运行 `./scripts/test-interactions.sh` 可检查拖拽、文件夹、搜索选择、页码恢复和扫描刷新等关键交互。测试使用隔离的数据，不会启动其他应用或改动现有排序。
 
